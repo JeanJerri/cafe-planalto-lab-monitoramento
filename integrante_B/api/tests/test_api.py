@@ -1,5 +1,6 @@
 """Testes automatizados da API da Loja Café Planalto."""
 
+from contextlib import contextmanager
 import io
 import json
 import logging
@@ -12,7 +13,12 @@ from prometheus_client.parser import text_string_to_metric_families
 
 from src.logging_json import JsonFormatter, extract_trace_id
 from src.main import create_app
-from src.repository import DatabaseUnavailableError, InMemoryRepository
+from src.repository import (
+    CATALOGO_INICIAL,
+    DatabaseUnavailableError,
+    InMemoryRepository,
+    PostgresRepository,
+)
 
 
 class FailingHealthRepository(InMemoryRepository):
@@ -231,3 +237,136 @@ def test_logs_json_estruturados_e_trace_id():
     assert com_x_trace["trace_id"] == "trace-abc-123"
     assert com_w3c["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
     assert extract_trace_id({"traceparent": "invalid"}) is None
+
+
+class _FakeCursor:
+    def __init__(self, pool: "_FakePool") -> None:
+        self._pool = pool
+        self._result: list[tuple] = []
+
+    def __enter__(self) -> "_FakeCursor":
+        return self
+
+    def __exit__(self, *_args) -> None:
+        return None
+
+    def execute(self, sql: str, params: tuple | None = None) -> None:
+        self._pool.executed_sql.append(sql.strip())
+        normalized = " ".join(sql.split()).upper()
+        if normalized.startswith("SELECT 1"):
+            self._result = [(1,)]
+        elif "FROM PRODUTOS" in normalized and normalized.startswith("SELECT ID, NOME"):
+            self._result = [
+                (
+                    item["id"],
+                    item["nome"],
+                    item["descricao"],
+                    item["origem"],
+                    item["torra"],
+                    item["preco_reais"],
+                    item["estoque"],
+                )
+                for item in CATALOGO_INICIAL
+            ]
+        elif normalized.startswith("INSERT INTO PRODUTOS") and params is not None:
+            self._pool.seeded_ids.add(params[0])
+            self._result = []
+        else:
+            self._result = []
+
+    def fetchall(self) -> list[tuple]:
+        return list(self._result)
+
+    def fetchone(self) -> tuple | None:
+        return self._result[0] if self._result else None
+
+
+class _FakeConnection:
+    def __init__(self, pool: "_FakePool") -> None:
+        self._pool = pool
+        self.committed = False
+
+    def cursor(self) -> _FakeCursor:
+        return _FakeCursor(self._pool)
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+class _FakePool:
+    def __init__(self, fail_first_n: int = 0, always_fail: bool = False) -> None:
+        self.fail_first_n = fail_first_n
+        self.fail = always_fail
+        self.attempts = 0
+        self.closed = False
+        self.executed_sql: list[str] = []
+        self.seeded_ids: set[int] = set()
+
+    @contextmanager
+    def connection(self, timeout: float | None = None):
+        _ = timeout
+        self.attempts += 1
+        if self.fail or self.attempts <= self.fail_first_n:
+            raise RuntimeError("Conexao PostgreSQL recusada")
+        yield _FakeConnection(self)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_postgres_repository_retry_no_startup_e_recuperacao_apos_queda():
+    fake_pool = _FakePool(fail_first_n=2)
+    repo = PostgresRepository(
+        database_url="postgresql://cafe:cafe@db:5432/cafeplanalto",
+        init_retries=5,
+        init_retry_delay=0.0,
+        pool_factory=lambda **_kwargs: fake_pool,
+    )
+
+    repo.initialize()
+    assert fake_pool.attempts == 3
+    assert repo._schema_ready is True
+    assert len(fake_pool.seeded_ids) == len(CATALOGO_INICIAL)
+
+    assert repo.check_health() == (True, "postgres")
+    assert len(repo.list_produtos()) == len(CATALOGO_INICIAL)
+
+    # Simula Falha 4 (banco parado)
+    fake_pool.fail = True
+    assert repo.check_health() == (False, "unavailable")
+    with pytest.raises(DatabaseUnavailableError):
+        repo.list_produtos()
+
+    # Simula recuperacao automatica apos religar o banco
+    fake_pool.fail = False
+    assert repo.check_health() == (True, "postgres")
+    assert len(repo.list_produtos()) == len(CATALOGO_INICIAL)
+
+    repo.close()
+    assert fake_pool.closed is True
+
+
+def test_postgres_repository_nao_trava_startup_se_banco_offline():
+    fake_pool = _FakePool(always_fail=True)
+    repo = PostgresRepository(
+        database_url="postgresql://cafe:cafe@db:5432/cafeplanalto",
+        init_retries=2,
+        init_retry_delay=0.0,
+        pool_factory=lambda **_kwargs: fake_pool,
+    )
+    app = create_app(repository=repo)
+
+    with TestClient(app) as client:
+        # API sobrevive ao startup mesmo com banco fora e responde 503 no /health
+        resp_down = client.get("/health")
+        assert resp_down.status_code == 503
+        assert resp_down.json() == {"status": "error", "database": "unavailable"}
+        assert repo._schema_ready is False
+
+        # Quando o banco volta online, o schema e criado automaticamente e /health volta a 200
+        fake_pool.fail = False
+        resp_up = client.get("/health")
+        assert resp_up.status_code == 200
+        assert resp_up.json() == {"status": "ok", "database": "postgres"}
+        assert repo._schema_ready is True
+        assert len(fake_pool.seeded_ids) == len(CATALOGO_INICIAL)

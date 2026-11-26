@@ -1,9 +1,11 @@
 """Camada de persistência com suporte em memória (Semana 1) e PostgreSQL (Semana 2)."""
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import logging
 import threading
+import time
 from typing import Any, Protocol
 
 from src.config import Settings
@@ -137,38 +139,151 @@ class InMemoryRepository:
 
 
 class PostgresRepository:
-    """Repositório PostgreSQL com pool de conexões e métrica de conexões em uso."""
+    """Repositório PostgreSQL com pool de conexões e recuperação após falhas."""
 
-    def __init__(self, database_url: str, min_size: int = 1, max_size: int = 5) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        min_size: int = 1,
+        max_size: int = 5,
+        connect_timeout: int = 2,
+        pool_timeout: float = 3.0,
+        init_retries: int = 10,
+        init_retry_delay: float = 1.0,
+        pool_factory: Callable[..., Any] | None = None,
+    ) -> None:
         self._database_url = database_url
         self._min_size = min_size
         self._max_size = max_size
+        self._connect_timeout = connect_timeout
+        self._pool_timeout = pool_timeout
+        self._init_retries = max(1, init_retries)
+        self._init_retry_delay = max(0.0, init_retry_delay)
+        self._pool_factory = pool_factory
         self._pool: Any = None
+        self._schema_lock = threading.Lock()
+        self._schema_ready = False
 
     def initialize(self) -> None:
-        from psycopg_pool import ConnectionPool
-
         DB_POOL_CONEXOES_EM_USO.set(0)
-        self._pool = ConnectionPool(
-            conninfo=self._database_url,
-            min_size=self._min_size,
-            max_size=self._max_size,
-            open=True,
-        )
-        self._ensure_schema_and_seed()
+        self._schema_ready = False
+
+        if self._pool_factory is not None:
+            self._pool = self._pool_factory(
+                conninfo=self._database_url,
+                min_size=self._min_size,
+                max_size=self._max_size,
+                timeout=self._pool_timeout,
+                connect_timeout=self._connect_timeout,
+            )
+        else:
+            from psycopg_pool import ConnectionPool
+
+            self._pool = ConnectionPool(
+                conninfo=self._database_url,
+                min_size=self._min_size,
+                max_size=self._max_size,
+                timeout=self._pool_timeout,
+                reconnect_timeout=5.0,
+                check=ConnectionPool.check_connection,
+                kwargs={"connect_timeout": self._connect_timeout},
+                open=True,
+            )
+
+        self._ensure_schema_and_seed_with_retries()
 
     def close(self) -> None:
         if self._pool is not None:
             self._pool.close()
             self._pool = None
+        self._schema_ready = False
         DB_POOL_CONEXOES_EM_USO.set(0)
+
+    def _ensure_schema_and_seed_with_retries(self) -> None:
+        logger = logging.getLogger("cafeplanalto")
+        for attempt in range(1, self._init_retries + 1):
+            try:
+                self._ensure_schema_if_needed()
+                return
+            except Exception as exc:
+                if attempt == self._init_retries:
+                    logger.warning(
+                        "PostgreSQL indisponível no startup; API seguirá viva e tentará criar o schema quando o banco responder",
+                        extra={"evento": "db_startup_adiado", "erro": str(exc)},
+                    )
+                    return
+                if self._init_retry_delay > 0:
+                    time.sleep(self._init_retry_delay)
+
+    def _ensure_schema_if_needed(self) -> None:
+        if self._schema_ready:
+            return
+        if self._pool is None:
+            raise DatabaseUnavailableError("Pool de conexões PostgreSQL não inicializado")
+
+        with self._schema_lock:
+            if self._schema_ready:
+                return
+            # Usa self._pool.connection diretamente para evitar recursão/deadlock com _get_connection.
+            with self._pool.connection(timeout=self._pool_timeout) as conn:
+                self._create_schema_and_seed(conn)
+            self._schema_ready = True
+
+    def _create_schema_and_seed(self, conn: Any) -> None:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS produtos (
+                    id INTEGER PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    descricao TEXT NOT NULL,
+                    origem TEXT NOT NULL,
+                    torra TEXT NOT NULL,
+                    preco_reais NUMERIC(10, 2) NOT NULL,
+                    estoque INTEGER NOT NULL
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pedidos (
+                    id SERIAL PRIMARY KEY,
+                    produto_id INTEGER NOT NULL REFERENCES produtos(id),
+                    produto_nome TEXT NOT NULL,
+                    quantidade INTEGER NOT NULL,
+                    valor_total_reais NUMERIC(10, 2) NOT NULL,
+                    cliente TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            for item in CATALOGO_INICIAL:
+                cur.execute(
+                    """
+                    INSERT INTO produtos (id, nome, descricao, origem, torra, preco_reais, estoque)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (
+                        item["id"],
+                        item["nome"],
+                        item["descricao"],
+                        item["origem"],
+                        item["torra"],
+                        item["preco_reais"],
+                        item["estoque"],
+                    ),
+                )
+        conn.commit()
 
     @contextmanager
     def _get_connection(self) -> Iterator[Any]:
         if self._pool is None:
             raise DatabaseUnavailableError("Pool de conexões PostgreSQL não inicializado")
         try:
-            with self._pool.connection() as conn:
+            self._ensure_schema_if_needed()
+            with self._pool.connection(timeout=self._pool_timeout) as conn:
                 DB_POOL_CONEXOES_EM_USO.inc()
                 try:
                     yield conn
@@ -178,57 +293,6 @@ class PostgresRepository:
             raise
         except Exception as exc:
             raise DatabaseUnavailableError(str(exc)) from exc
-
-    def _ensure_schema_and_seed(self) -> None:
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS produtos (
-                        id INTEGER PRIMARY KEY,
-                        nome TEXT NOT NULL,
-                        descricao TEXT NOT NULL,
-                        origem TEXT NOT NULL,
-                        torra TEXT NOT NULL,
-                        preco_reais NUMERIC(10, 2) NOT NULL,
-                        estoque INTEGER NOT NULL
-                    )
-                    """
-                )
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS pedidos (
-                        id SERIAL PRIMARY KEY,
-                        produto_id INTEGER NOT NULL REFERENCES produtos(id),
-                        produto_nome TEXT NOT NULL,
-                        quantidade INTEGER NOT NULL,
-                        valor_total_reais NUMERIC(10, 2) NOT NULL,
-                        cliente TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    )
-                    """
-                )
-                cur.execute("SELECT COUNT(*) FROM produtos")
-                count = cur.fetchone()[0]
-                if count == 0:
-                    for item in CATALOGO_INICIAL:
-                        cur.execute(
-                            """
-                            INSERT INTO produtos (id, nome, descricao, origem, torra, preco_reais, estoque)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            """,
-                            (
-                                item["id"],
-                                item["nome"],
-                                item["descricao"],
-                                item["origem"],
-                                item["torra"],
-                                item["preco_reais"],
-                                item["estoque"],
-                            ),
-                        )
-            conn.commit()
 
     def list_produtos(self) -> list[dict[str, Any]]:
         try:
@@ -335,11 +399,19 @@ class PostgresRepository:
             raise DatabaseUnavailableError(str(exc)) from exc
 
     def check_health(self) -> tuple[bool, str]:
+        if self._pool is None:
+            return False, "unavailable"
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                    cur.fetchone()
+            with self._pool.connection(timeout=self._pool_timeout) as conn:
+                DB_POOL_CONEXOES_EM_USO.inc()
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                        cur.fetchone()
+                finally:
+                    DB_POOL_CONEXOES_EM_USO.dec()
+            if not self._schema_ready:
+                self._ensure_schema_if_needed()
             return True, "postgres"
         except Exception:
             return False, "unavailable"
@@ -352,5 +424,9 @@ def create_repository(settings: Settings) -> BaseRepository:
             database_url=settings.database_url,
             min_size=settings.db_pool_min_size,
             max_size=settings.db_pool_max_size,
+            connect_timeout=settings.db_connect_timeout,
+            pool_timeout=settings.db_pool_timeout,
+            init_retries=settings.db_init_retries,
+            init_retry_delay=settings.db_init_retry_delay,
         )
     return InMemoryRepository()

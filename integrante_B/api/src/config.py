@@ -20,6 +20,10 @@ class Settings:
     database_url: str
     db_pool_min_size: int
     db_pool_max_size: int
+    db_connect_timeout: int
+    db_pool_timeout: float
+    db_init_retries: int
+    db_init_retry_delay: float
 
 
 def _env_str(name: str, default: str) -> str:
@@ -37,6 +41,13 @@ def _env_int(name: str, default: int) -> int:
     return int(value.strip())
 
 
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return float(value.strip())
+
+
 def load_settings() -> Settings:
     """Carrega o arquivo .env (se existir) e retorna as configurações resolvidas."""
     load_dotenv()
@@ -47,4 +58,8 @@ def load_settings() -> Settings:
         database_url=_env_str("DATABASE_URL", ""),
         db_pool_min_size=_env_int("DB_POOL_MIN_SIZE", 1),
         db_pool_max_size=_env_int("DB_POOL_MAX_SIZE", 5),
+        db_connect_timeout=_env_int("DB_CONNECT_TIMEOUT", 2),
+        db_pool_timeout=_env_float("DB_POOL_TIMEOUT", 3.0),
+        db_init_retries=_env_int("DB_INIT_RETRIES", 10),
+        db_init_retry_delay=_env_float("DB_INIT_RETRY_DELAY", 1.0),
     )
