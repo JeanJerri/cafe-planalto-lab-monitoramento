@@ -1,0 +1,15 @@
+.git
+.gitignore
+.agente
+.venv
+venv
+.env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+tests
+Divisao Semana 1.md
+*.pdf
+README.md
+docs
