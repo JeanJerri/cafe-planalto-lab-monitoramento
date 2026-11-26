@@ -201,11 +201,17 @@ Mantenha abertas as abas **`http://localhost:9090/alerts`** e **`http://localhos
 ### Passo 3.5 — Testes automatizados (`pytest`) e encerramento
 ```bash
 cd ~/Projeto_Final/integrante_B
+
+# No Ubuntu 24.04 (WSL2), instale o pacote de ambiente virtual na primeira vez:
+sudo apt update && sudo apt install -y python3-venv
+
+# Caso uma tentativa anterior tenha criado uma .venv quebrada, limpe e recrie:
+rm -rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r api/requirements.txt pytest httpx
 pytest -v api/tests observability/tests
-# Esperado: 12 passed
+# Esperado: 14 passed
 ```
 Para encerrar os contêineres da Parte B (adicione `-v` apenas se quiser zerar o banco e o histórico do Prometheus):
 ```bash
