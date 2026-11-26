@@ -87,7 +87,7 @@ groups:
           tipo: sintoma
         annotations:
           summary: "Taxa de erros 5xx da API acima de 5%"
-          description: "A proporção de respostas HTTP 5xx na API está em {{ printf \"%.1f\" (mul $value 100) }}% no último minuto."
+          description: "A proporção de respostas HTTP 5xx na API está em {{ $value | humanizePercentage }} no último minuto."
 
       - alert: LatenciaP95AcimaDoSLO
         expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{rota=~"/produtos|/pedidos"}[1m]))) > 0.3
@@ -109,4 +109,4 @@ groups:
           tipo: causa
         annotations:
           summary: "Uso de memória acima de 85% no host"
-          description: "A utilização de memória reportada pelo node_exporter passou de 85% (atual: {{ printf \"%.1f\" (mul $value 100) }}%)."
+          description: "A utilização de memória reportada pelo node_exporter passou de 85% (atual: {{ $value | humanizePercentage }})."

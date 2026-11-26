@@ -2,9 +2,15 @@ server {
     listen 80;
     server_name loja.cafeplanalto.lab localhost _;
 
+    root /usr/share/nginx/html;
+    index index.html;
+
     location = / {
-        root /usr/share/nginx/html;
-        index index.html;
+        try_files /index.html =404;
+    }
+
+    location = /index.html {
+        try_files /index.html =404;
     }
 
     location ~ ^/(produtos|pedidos|health|admin/caos|docs|redoc|openapi\.json) {

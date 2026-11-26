@@ -138,3 +138,15 @@ def test_dockerfiles_sem_crlf_e_sem_cmd_multilinha_invalido():
         assert not re.search(r"(?m)^(CMD|ENTRYPOINT)\s+\[\s*\n", text), (
             f"CMD/ENTRYPOINT multilinha sem barra invertida em {df}"
         )
+
+
+def test_templates_prometheus_e_nginx_raiz_validos():
+    rules = _read_text(OBS_DIR / "prometheus" / "rules" / "alerts.yml")
+    assert "(mul " not in rules
+    assert "(div " not in rules
+    assert "humanizePercentage" in rules
+
+    nginx_tmpl = _read_text(INTEGRANTE_B_DIR / "web" / "templates" / "default.conf.template")
+    assert b"\r" not in nginx_tmpl.encode("utf-8")
+    assert "root /usr/share/nginx/html;" in nginx_tmpl
+    assert "try_files /index.html =404;" in nginx_tmpl
