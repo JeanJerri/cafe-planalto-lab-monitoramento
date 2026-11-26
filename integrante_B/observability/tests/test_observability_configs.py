@@ -150,3 +150,16 @@ def test_templates_prometheus_e_nginx_raiz_validos():
     assert b"\r" not in nginx_tmpl.encode("utf-8")
     assert "root /usr/share/nginx/html;" in nginx_tmpl
     assert "try_files /index.html =404;" in nginx_tmpl
+
+
+def test_frontend_html_autocontido_e_integrado_com_api():
+    html_path = INTEGRANTE_B_DIR / "web" / "html" / "index.html"
+    raw = html_path.read_bytes()
+    assert b"\r" not in raw
+    html = raw.decode("utf-8")
+
+    # Sem CDNs externas para funcionar 100% offline dentro do laboratorio
+    assert not re.search(r'(src|href)\s*=\s*["\']https?://', html, re.IGNORECASE)
+
+    for rota in ("/produtos", "/pedidos", "/health", "/admin/caos"):
+        assert rota in html, f"Rota {rota} ausente no front-end"

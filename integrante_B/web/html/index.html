@@ -3,157 +3,954 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Loja Café Planalto</title>
+  <title>Café Planalto — Loja Virtual</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f2eb;
-      --card: #ffffff;
-      --text: #2c1e16;
-      --muted: #6c584c;
-      --accent: #6f4e37;
-      --accent-hover: #563b28;
+      --bg: #f5efe6;
+      --surface: #fffdf9;
+      --surface-alt: #f0e6d8;
+      --ink: #2b1b12;
+      --muted: #6b5344;
+      --border: #dfd1bf;
+      --brand: #6f4e37;
+      --brand-dark: #4f3524;
+      --gold: #b87d3b;
       --ok: #1b6b3a;
+      --ok-bg: #e9f6ee;
+      --warn: #9a5b13;
+      --warn-bg: #fef5e7;
       --err: #a4161a;
-      --border: #e0d6c8;
+      --err-bg: #fdeaea;
+      --shadow: 0 6px 20px rgba(43, 27, 18, 0.08);
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
-      color: var(--text);
+      color: var(--ink);
       line-height: 1.5;
     }
+
     header {
-      background: var(--text);
+      background: linear-gradient(135deg, #2b1b12 0%, #4b2f1f 100%);
       color: #fff;
-      padding: 1.25rem 1.5rem;
+      padding: 1.15rem 1.5rem;
+      border-bottom: 3px solid var(--gold);
+    }
+
+    .header-inner {
+      max-width: 1080px;
+      margin: 0 auto;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
     }
-    header h1 { margin: 0; font-size: 1.35rem; }
-    header p { margin: 0.2rem 0 0; font-size: 0.9rem; color: #e2d5c8; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.12);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.3rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand p {
+      margin: 0.15rem 0 0;
+      font-size: 0.86rem;
+      color: #e5d5c3;
+    }
+
+    .health-area {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
     .badge {
-      padding: 0.35rem 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.4rem 0.85rem;
       border-radius: 999px;
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       font-weight: 600;
-      background: #44332a;
+      background: rgba(255, 255, 255, 0.14);
       color: #fff;
     }
+
     .badge.ok { background: var(--ok); }
     .badge.err { background: var(--err); }
-    main {
-      max-width: 960px;
-      margin: 1.5rem auto;
-      padding: 0 1rem;
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.9;
     }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      padding: 0.42rem 0.75rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-ghost:hover { background: rgba(255, 255, 255, 0.24); }
+
+    nav.tabs {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tabs-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.94rem;
+      font-weight: 600;
+      padding: 0.85rem 1rem;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover { color: var(--ink); }
+
+    .tab-btn.active {
+      color: var(--brand);
+      border-bottom-color: var(--brand);
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 1.4rem auto 2.5rem;
+      padding: 0 1.25rem;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
     .feedback {
       display: none;
-      padding: 0.9rem 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
+      padding: 0.95rem 1.1rem;
+      border-radius: 10px;
+      margin-bottom: 1.15rem;
       border: 1px solid var(--border);
-      background: var(--card);
+      background: var(--surface);
+      box-shadow: var(--shadow);
     }
-    .feedback.ok { display: block; border-color: var(--ok); color: var(--ok); }
-    .feedback.err { display: block; border-color: var(--err); color: var(--err); }
+
+    .feedback.ok {
+      display: block;
+      border-color: #9dd4b2;
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .feedback.err {
+      display: block;
+      border-color: #e7a7a8;
+      background: var(--err-bg);
+      color: var(--err);
+    }
+
+    .toolbar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.95rem 1rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+    }
+
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    label.inline-label {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.48rem 0.7rem;
+      font-size: 0.9rem;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      outline: 2px solid rgba(111, 78, 55, 0.25);
+      border-color: var(--brand);
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.36rem 0.8rem;
+      font-size: 0.83rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1.1rem;
     }
+
     .card {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1rem;
+      border-radius: 14px;
+      padding: 1.15rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.95rem;
+      box-shadow: var(--shadow);
     }
-    .card h2 { margin: 0; font-size: 1.05rem; }
-    .meta { font-size: 0.85rem; color: var(--muted); }
-    .price { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
-    button {
-      width: 100%;
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .roast-pill {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.22rem 0.55rem;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      color: var(--brand-dark);
+      white-space: nowrap;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.3;
+    }
+
+    .origin {
+      margin: 0.3rem 0 0.5rem;
+      font-size: 0.83rem;
+      color: var(--muted);
+    }
+
+    .desc {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #3f2d23;
+    }
+
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 0.7rem;
+    }
+
+    .price {
+      font-size: 1.28rem;
+      font-weight: 700;
+      color: var(--brand);
+    }
+
+    .stock {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .buy-row {
+      display: flex;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    .qty-box {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .qty-btn {
       border: none;
-      border-radius: 6px;
-      padding: 0.65rem 0.9rem;
-      font-size: 0.95rem;
+      background: var(--surface-alt);
+      color: var(--ink);
+      width: 30px;
+      height: 36px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .qty-val {
+      min-width: 28px;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .btn-primary {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 0.62rem 0.9rem;
+      font-size: 0.92rem;
       font-weight: 600;
       cursor: pointer;
-      background: var(--accent);
+      background: var(--brand);
       color: #fff;
     }
-    button:hover { background: var(--accent-hover); }
-    button:disabled { opacity: 0.6; cursor: wait; }
+
+    .btn-primary:hover { background: var(--brand-dark); }
+    .btn-primary:disabled { opacity: 0.6; cursor: wait; }
+
+    .btn-secondary {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover { background: #e6d7c4; }
+
+    .btn-danger {
+      border: none;
+      background: var(--err);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-warn {
+      border: none;
+      background: var(--warn);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.15rem;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .kpi-value {
+      margin-top: 0.25rem;
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .panel-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.15rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.15rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.08rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.62rem 0.55rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .status-tag {
+      display: inline-block;
+      padding: 0.16rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .chaos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.1rem;
+    }
+
+    .chaos-status-box {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      margin-bottom: 0.9rem;
+      font-size: 0.92rem;
+    }
+
+    .chaos-status-box.ativo {
+      background: var(--warn-bg);
+      border-color: #ebc287;
+      color: var(--warn);
+    }
+
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      align-items: flex-end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .xray-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.7rem;
+      font-size: 0.84rem;
+    }
+
+    .xray-pill {
+      padding: 0.24rem 0.6rem;
+      border-radius: 6px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    pre.json-view {
+      margin: 0;
+      padding: 0.85rem;
+      border-radius: 8px;
+      background: #1f1612;
+      color: #f4eadf;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      max-height: 290px;
+    }
+
+    .muted-note {
+      font-size: 0.84rem;
+      color: var(--muted);
+      margin: 0.4rem 0 0;
+    }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h1>Café Planalto — Loja Virtual</h1>
-      <p>Torrefação de cafés especiais · Vitória da Conquista - BA</p>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f3d5b5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+            <line x1="6" y1="2" x2="6" y2="4"/>
+            <line x1="10" y1="2" x2="10" y2="4"/>
+            <line x1="14" y1="2" x2="14" y2="4"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Café Planalto — Loja Virtual</h1>
+          <p>Torrefação de cafés especiais · Vitória da Conquista - BA</p>
+        </div>
+      </div>
+
+      <div class="health-area">
+        <div id="health-badge" class="badge">
+          <span class="dot"></span>
+          <span id="health-text">Verificando saúde...</span>
+        </div>
+        <button id="refresh-health-btn" type="button" class="btn-ghost">Atualizar saúde</button>
+      </div>
     </div>
-    <div id="health-badge" class="badge">Verificando saúde...</div>
   </header>
+
+  <nav class="tabs" aria-label="Seções da loja">
+    <div class="tabs-inner">
+      <button type="button" class="tab-btn active" data-tab="catalogo">Catálogo da Loja</button>
+      <button type="button" class="tab-btn" data-tab="pedidos">Pedidos Recentes</button>
+      <button type="button" class="tab-btn" data-tab="caos">Laboratório de Caos &amp; Raio-X HTTP</button>
+    </div>
+  </nav>
 
   <main>
     <div id="feedback" class="feedback" role="status"></div>
-    <section id="catalogo" class="grid">
-      <p>Carregando catálogo de cafés...</p>
+
+    <!-- ABA 1: CATÁLOGO -->
+    <section id="tab-catalogo" class="tab-panel active">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <input id="search-input" type="text" placeholder="Buscar café ou origem..." aria-label="Buscar café">
+          <div id="roast-filters" class="toolbar-group" aria-label="Filtrar por torra">
+            <button type="button" class="chip active" data-roast="todas">Todas</button>
+            <button type="button" class="chip" data-roast="clara">Clara</button>
+            <button type="button" class="chip" data-roast="média">Média</button>
+            <button type="button" class="chip" data-roast="média-escura">Média-escura</button>
+            <button type="button" class="chip" data-roast="variada">Variada</button>
+          </div>
+        </div>
+        <div class="toolbar-group">
+          <label class="inline-label" for="cliente-input">Cliente:</label>
+          <input id="cliente-input" type="text" value="filial-web" maxlength="120" style="width: 150px;">
+        </div>
+      </div>
+
+      <section id="catalogo-grid" class="grid">
+        <p>Carregando catálogo de cafés...</p>
+      </section>
+    </section>
+
+    <!-- ABA 2: PEDIDOS RECENTES -->
+    <section id="tab-pedidos" class="tab-panel">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total de Pedidos no Banco</div>
+          <div id="kpi-total-pedidos" class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Faturamento Acumulado</div>
+          <div id="kpi-faturamento" class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket Médio</div>
+          <div id="kpi-ticket" class="kpi-value">—</div>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-header">
+          <div>
+            <h2>Últimos 15 pedidos registrados</h2>
+            <p class="muted-note">Inclui pedidos criados pela loja web e pelo gerador contínuo k6 da filial.</p>
+          </div>
+          <button id="refresh-pedidos-btn" type="button" class="btn-secondary">Atualizar lista</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#ID</th>
+                <th>Produto</th>
+                <th>Qtd</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Criado em (UTC)</th>
+              </tr>
+            </thead>
+            <tbody id="pedidos-tbody">
+              <tr><td colspan="7">Clique em "Atualizar lista" ou abra esta aba para carregar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA 3: LABORATÓRIO DE CAOS E RAIO-X HTTP -->
+    <section id="tab-caos" class="tab-panel">
+      <div class="chaos-grid">
+        <div class="panel-box">
+          <div class="panel-header">
+            <h2>Controle de Caos (<code>POST /admin/caos</code>)</h2>
+            <button id="refresh-caos-btn" type="button" class="btn-secondary">Ler estado</button>
+          </div>
+
+          <div id="chaos-status-box" class="chaos-status-box">Carregando estado do caos...</div>
+
+          <div class="preset-row">
+            <button type="button" class="btn-secondary" data-chaos-lat="0" data-chaos-err="0">Normal (0ms / 0%)</button>
+            <button type="button" class="btn-warn" data-chaos-lat="800" data-chaos-err="0">Falha 5: Lenta (800ms)</button>
+            <button type="button" class="btn-danger" data-chaos-lat="0" data-chaos-err="0.2">Falha 6: Erros 500 (20%)</button>
+          </div>
+
+          <form id="chaos-form" class="form-row">
+            <div class="field">
+              <label class="inline-label" for="latencia-input">Latência (ms)</label>
+              <input id="latencia-input" type="number" min="0" max="30000" step="50" value="0" style="width: 120px;">
+            </div>
+            <div class="field">
+              <label class="inline-label" for="taxa-erro-input">Taxa de erro (0.0 a 1.0)</label>
+              <input id="taxa-erro-input" type="number" min="0" max="1" step="0.05" value="0" style="width: 140px;">
+            </div>
+            <button type="submit" class="btn-primary" style="flex: 0 0 auto;">Aplicar</button>
+          </form>
+          <p class="muted-note">As rotas <code>/health</code>, <code>/metrics</code> e <code>/admin/caos</code> são imunes ao caos.</p>
+        </div>
+
+        <div class="panel-box">
+          <div class="panel-header">
+            <h2>Raio-X da Última Requisição HTTP</h2>
+          </div>
+          <div class="xray-meta">
+            <span id="xray-endpoint" class="xray-pill">Endpoint: —</span>
+            <span id="xray-status" class="xray-pill">Status: —</span>
+            <span id="xray-duration" class="xray-pill">Tempo: —</span>
+            <span id="xray-trace" class="xray-pill">X-Trace-Id: —</span>
+          </div>
+          <pre id="xray-json" class="json-view">{ "dica": "Faça qualquer ação (buscar catálogo, comprar ou checar saúde) para ver o JSON e o X-Trace-Id aqui." }</pre>
+        </div>
+      </div>
     </section>
   </main>
 
   <script>
     const healthBadge = document.getElementById("health-badge");
+    const healthText = document.getElementById("health-text");
     const feedbackBox = document.getElementById("feedback");
-    const catalogoEl = document.getElementById("catalogo");
+    const catalogoGrid = document.getElementById("catalogo-grid");
+    const searchInput = document.getElementById("search-input");
+    const clienteInput = document.getElementById("cliente-input");
+    const pedidosTbody = document.getElementById("pedidos-tbody");
+    const chaosStatusBox = document.getElementById("chaos-status-box");
+    const latenciaInput = document.getElementById("latencia-input");
+    const taxaErroInput = document.getElementById("taxa-erro-input");
+
+    let produtosCache = [];
+    let selectedRoast = "todas";
+    const quantidades = {};
+
+    function formatBRL(valor) {
+      return "R$ " + Number(valor || 0).toFixed(2).replace(".", ",");
+    }
 
     function showFeedback(message, isError) {
       feedbackBox.textContent = message;
       feedbackBox.className = "feedback " + (isError ? "err" : "ok");
     }
 
+    function updateXray(method, path, status, durationMs, traceId, payload) {
+      document.getElementById("xray-endpoint").textContent = method + " " + path;
+      document.getElementById("xray-status").textContent = "Status: " + status;
+      document.getElementById("xray-duration").textContent = "Tempo: " + durationMs + " ms";
+      document.getElementById("xray-trace").textContent = "X-Trace-Id: " + (traceId || "—");
+      document.getElementById("xray-json").textContent = JSON.stringify(payload, null, 2);
+    }
+
+    async function apiFetch(path, options) {
+      const opts = options || {};
+      const method = opts.method || "GET";
+      const t0 = performance.now();
+      const res = await fetch(path, opts);
+      const durationMs = Math.round(performance.now() - t0);
+      const traceId = res.headers.get("X-Trace-Id") || "";
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_err) {
+        data = { detail: "Resposta não JSON (HTTP " + res.status + ")" };
+      }
+      updateXray(method, path, res.status, durationMs, traceId, data);
+      return { res: res, data: data, durationMs: durationMs, traceId: traceId };
+    }
+
     async function checkHealth() {
       try {
-        const res = await fetch("/health");
-        const data = await res.json();
-        if (res.ok) {
-          healthBadge.textContent = "Saúde: " + data.status + " (" + data.database + ")";
+        const result = await apiFetch("/health");
+        if (result.res.ok) {
+          healthText.textContent = "Saúde: " + result.data.status + " (" + result.data.database + " · " + result.durationMs + "ms)";
           healthBadge.className = "badge ok";
         } else {
-          healthBadge.textContent = "Saúde: " + (data.status || "erro") + " (" + (data.database || "indisponível") + ")";
+          healthText.textContent = "Saúde: " + (result.data.status || "erro") + " (" + (result.data.database || "indisponível") + ")";
           healthBadge.className = "badge err";
         }
-      } catch (err) {
-        healthBadge.textContent = "Saúde: erro de conexão";
+      } catch (_err) {
+        healthText.textContent = "Saúde: falha de rede";
         healthBadge.className = "badge err";
+      }
+    }
+
+    function renderProdutos() {
+      const term = searchInput.value.trim().toLowerCase();
+      const filtrados = produtosCache.filter((p) => {
+        const matchRoast = selectedRoast === "todas" || p.torra.toLowerCase() === selectedRoast;
+        const matchText =
+          !term ||
+          p.nome.toLowerCase().includes(term) ||
+          p.origem.toLowerCase().includes(term) ||
+          p.descricao.toLowerCase().includes(term);
+        return matchRoast && matchText;
+      });
+
+      catalogoGrid.textContent = "";
+      if (filtrados.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "Nenhum café encontrado para esse filtro.";
+        catalogoGrid.appendChild(empty);
+        return;
+      }
+
+      for (const p of filtrados) {
+        if (!quantidades[p.id]) quantidades[p.id] = 1;
+
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const infoWrap = document.createElement("div");
+        const top = document.createElement("div");
+        top.className = "card-top";
+
+        const title = document.createElement("h2");
+        title.textContent = p.nome;
+
+        const roast = document.createElement("span");
+        roast.className = "roast-pill";
+        roast.textContent = "Torra " + p.torra;
+
+        top.appendChild(title);
+        top.appendChild(roast);
+
+        const origin = document.createElement("p");
+        origin.className = "origin";
+        origin.textContent = p.origem;
+
+        const desc = document.createElement("p");
+        desc.className = "desc";
+        desc.textContent = p.descricao;
+
+        infoWrap.appendChild(top);
+        infoWrap.appendChild(origin);
+        infoWrap.appendChild(desc);
+
+        const actionWrap = document.createElement("div");
+        const priceRow = document.createElement("div");
+        priceRow.className = "price-row";
+
+        const price = document.createElement("span");
+        price.className = "price";
+        price.textContent = formatBRL(p.preco_reais);
+
+        const stock = document.createElement("span");
+        stock.className = "stock";
+        stock.textContent = "Estoque: " + p.estoque + " un.";
+
+        priceRow.appendChild(price);
+        priceRow.appendChild(stock);
+
+        const buyRow = document.createElement("div");
+        buyRow.className = "buy-row";
+
+        const qtyBox = document.createElement("div");
+        qtyBox.className = "qty-box";
+
+        const btnMinus = document.createElement("button");
+        btnMinus.type = "button";
+        btnMinus.className = "qty-btn";
+        btnMinus.textContent = "-";
+
+        const qtyVal = document.createElement("span");
+        qtyVal.className = "qty-val";
+        qtyVal.textContent = String(quantidades[p.id]);
+
+        const btnPlus = document.createElement("button");
+        btnPlus.type = "button";
+        btnPlus.className = "qty-btn";
+        btnPlus.textContent = "+";
+
+        btnMinus.addEventListener("click", () => {
+          if (quantidades[p.id] > 1) {
+            quantidades[p.id] -= 1;
+            qtyVal.textContent = String(quantidades[p.id]);
+          }
+        });
+        btnPlus.addEventListener("click", () => {
+          if (quantidades[p.id] < 20) {
+            quantidades[p.id] += 1;
+            qtyVal.textContent = String(quantidades[p.id]);
+          }
+        });
+
+        qtyBox.appendChild(btnMinus);
+        qtyBox.appendChild(qtyVal);
+        qtyBox.appendChild(btnPlus);
+
+        const buyBtn = document.createElement("button");
+        buyBtn.type = "button";
+        buyBtn.className = "btn-primary";
+        buyBtn.textContent = "Fazer Pedido";
+        buyBtn.addEventListener("click", () => comprar(p.id, buyBtn));
+
+        buyRow.appendChild(qtyBox);
+        buyRow.appendChild(buyBtn);
+
+        actionWrap.appendChild(priceRow);
+        actionWrap.appendChild(buyRow);
+
+        card.appendChild(infoWrap);
+        card.appendChild(actionWrap);
+        catalogoGrid.appendChild(card);
+      }
+    }
+
+    async function loadProdutos() {
+      try {
+        const result = await apiFetch("/produtos");
+        if (!result.res.ok) {
+          throw new Error("HTTP " + result.res.status + ": " + (result.data.detail || "erro"));
+        }
+        produtosCache = result.data;
+        renderProdutos();
+      } catch (err) {
+        catalogoGrid.textContent = "";
+        const p = document.createElement("p");
+        p.textContent = "Não foi possível carregar o catálogo (" + err.message + ").";
+        catalogoGrid.appendChild(p);
       }
     }
 
     async function comprar(produtoId, btn) {
       btn.disabled = true;
+      const quantidade = quantidades[produtoId] || 1;
+      const cliente = (clienteInput.value || "").trim() || "filial-web";
       try {
-        const res = await fetch("/pedidos", {
+        const result = await apiFetch("/pedidos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ produto_id: produtoId, quantidade: 1, cliente: "loja-web" })
+          body: JSON.stringify({
+            produto_id: produtoId,
+            quantidade: quantidade,
+            cliente: cliente,
+          }),
         });
-        const data = await res.json();
-        if (!res.ok) {
-          showFeedback("Falha ao criar pedido (HTTP " + res.status + "): " + (data.detail || "erro"), true);
+        if (!result.res.ok) {
+          showFeedback(
+            "Falha ao criar pedido (HTTP " + result.res.status + " em " + result.durationMs + "ms): " +
+            (result.data.detail || "erro") + (result.traceId ? " · trace_id=" + result.traceId : ""),
+            true
+          );
           return;
         }
         showFeedback(
-          "Pedido #" + data.id + " confirmado: " + data.produto_nome +
-          " — R$ " + Number(data.valor_total_reais).toFixed(2) + " (" + data.status + ")",
+          "Pedido #" + result.data.id + " confirmado: " + result.data.quantidade + "x " +
+          result.data.produto_nome + " — " + formatBRL(result.data.valor_total_reais) +
+          " (" + result.durationMs + "ms" + (result.traceId ? " · trace_id=" + result.traceId : "") + ")",
           false
         );
       } catch (err) {
@@ -163,36 +960,150 @@
       }
     }
 
-    async function loadProdutos() {
+    async function loadPedidos() {
       try {
-        const res = await fetch("/produtos");
-        if (!res.ok) {
-          throw new Error("HTTP " + res.status);
+        const result = await apiFetch("/pedidos");
+        if (!result.res.ok) {
+          throw new Error("HTTP " + result.res.status);
         }
-        const produtos = await res.json();
-        catalogoEl.innerHTML = "";
-        for (const p of produtos) {
-          const card = document.createElement("article");
-          card.className = "card";
-          card.innerHTML = `
-            <div>
-              <h2>${p.nome}</h2>
-              <p class="meta">${p.origem} · Torra ${p.torra}</p>
-              <p>${p.descricao}</p>
-            </div>
-            <div>
-              <p class="price">R$ ${Number(p.preco_reais).toFixed(2)}</p>
-              <button type="button">Comprar 1 unidade</button>
-            </div>
-          `;
-          const btn = card.querySelector("button");
-          btn.addEventListener("click", () => comprar(p.id, btn));
-          catalogoEl.appendChild(card);
+        const pedidos = result.data || [];
+        const totalPedidos = pedidos.length;
+        const faturamento = pedidos.reduce((acc, item) => acc + Number(item.valor_total_reais || 0), 0);
+        const ticketMedio = totalPedidos > 0 ? faturamento / totalPedidos : 0;
+
+        document.getElementById("kpi-total-pedidos").textContent = String(totalPedidos);
+        document.getElementById("kpi-faturamento").textContent = formatBRL(faturamento);
+        document.getElementById("kpi-ticket").textContent = formatBRL(ticketMedio);
+
+        const recentes = pedidos.slice(-15).reverse();
+        pedidosTbody.textContent = "";
+        if (recentes.length === 0) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 7;
+          td.textContent = "Nenhum pedido registrado ainda.";
+          tr.appendChild(td);
+          pedidosTbody.appendChild(tr);
+          return;
+        }
+
+        for (const item of recentes) {
+          const tr = document.createElement("tr");
+          const cells = [
+            "#" + item.id,
+            item.produto_nome,
+            String(item.quantidade),
+            item.cliente,
+            formatBRL(item.valor_total_reais),
+            item.status,
+            item.criado_em,
+          ];
+          cells.forEach((txt, idx) => {
+            const td = document.createElement("td");
+            if (idx === 5) {
+              const span = document.createElement("span");
+              span.className = "status-tag";
+              span.textContent = txt;
+              td.appendChild(span);
+            } else {
+              td.textContent = txt;
+            }
+            tr.appendChild(td);
+          });
+          pedidosTbody.appendChild(tr);
         }
       } catch (err) {
-        catalogoEl.innerHTML = "<p>Não foi possível carregar o catálogo (" + err.message + ").</p>";
+        pedidosTbody.textContent = "";
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 7;
+        td.textContent = "Erro ao carregar pedidos (" + err.message + ").";
+        tr.appendChild(td);
+        pedidosTbody.appendChild(tr);
       }
     }
+
+    function renderChaosState(data) {
+      const ativo = Boolean(data.ativo);
+      chaosStatusBox.className = "chaos-status-box" + (ativo ? " ativo" : "");
+      chaosStatusBox.textContent =
+        "Estado atual: " + (ativo ? "CAOS ATIVO" : "Normal (desligado)") +
+        " · latencia_ms = " + data.latencia_ms +
+        " ms · taxa_erro = " + Math.round(Number(data.taxa_erro || 0) * 100) + "%";
+      latenciaInput.value = String(data.latencia_ms);
+      taxaErroInput.value = String(data.taxa_erro);
+    }
+
+    async function loadChaos() {
+      try {
+        const result = await apiFetch("/admin/caos");
+        if (result.res.ok) renderChaosState(result.data);
+      } catch (_err) {
+        chaosStatusBox.textContent = "Erro ao consultar /admin/caos.";
+      }
+    }
+
+    async function applyChaos(latenciaMs, taxaErro) {
+      try {
+        const result = await apiFetch("/admin/caos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            latencia_ms: Number(latenciaMs),
+            taxa_erro: Number(taxaErro),
+          }),
+        });
+        if (result.res.ok) {
+          renderChaosState(result.data);
+          showFeedback(
+            "Caos atualizado: latencia_ms=" + result.data.latencia_ms +
+            ", taxa_erro=" + result.data.taxa_erro,
+            false
+          );
+        } else {
+          showFeedback("Falha ao configurar caos (HTTP " + result.res.status + ")", true);
+        }
+      } catch (err) {
+        showFeedback("Erro de rede ao configurar caos: " + err.message, true);
+      }
+    }
+
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-tab");
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + target).classList.add("active");
+        if (target === "pedidos") loadPedidos();
+        if (target === "caos") loadChaos();
+      });
+    });
+
+    document.querySelectorAll("#roast-filters .chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll("#roast-filters .chip").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        selectedRoast = chip.getAttribute("data-roast") || "todas";
+        renderProdutos();
+      });
+    });
+
+    searchInput.addEventListener("input", renderProdutos);
+    document.getElementById("refresh-health-btn").addEventListener("click", checkHealth);
+    document.getElementById("refresh-pedidos-btn").addEventListener("click", loadPedidos);
+    document.getElementById("refresh-caos-btn").addEventListener("click", loadChaos);
+
+    document.querySelectorAll("[data-chaos-lat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyChaos(btn.getAttribute("data-chaos-lat"), btn.getAttribute("data-chaos-err"));
+      });
+    });
+
+    document.getElementById("chaos-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyChaos(latenciaInput.value, taxaErroInput.value);
+    });
 
     checkHealth();
     loadProdutos();
