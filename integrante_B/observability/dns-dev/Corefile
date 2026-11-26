@@ -1,0 +1,12 @@
+cafeplanalto.lab:53 {
+    errors
+    log
+
+    hosts {
+        172.20.10.10 dns.cafeplanalto.lab
+        172.20.10.20 loja.cafeplanalto.lab web.cafeplanalto.lab
+        172.20.10.21 api.cafeplanalto.lab
+        172.20.10.22 db.cafeplanalto.lab
+        fallthrough
+    }
+}

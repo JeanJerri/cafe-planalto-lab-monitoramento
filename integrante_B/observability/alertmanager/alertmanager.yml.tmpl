@@ -1,0 +1,52 @@
+global:
+  resolve_timeout: 1m
+  smtp_smarthost: "${SMTP_SMARTHOST}"
+  smtp_from: "${SMTP_FROM}"
+  smtp_auth_username: "${SMTP_AUTH_USERNAME}"
+  smtp_auth_password: "${SMTP_AUTH_PASSWORD}"
+  smtp_require_tls: ${SMTP_REQUIRE_TLS}
+
+route:
+  receiver: "email-equipe"
+  group_by:
+    - "alertname"
+    - "servico"
+    - "severity"
+  group_wait: 15s
+  group_interval: 1m
+  repeat_interval: 15m
+
+inhibit_rules:
+  - source_matchers:
+      - 'severity="critical"'
+    target_matchers:
+      - 'severity="warning"'
+    equal:
+      - "servico"
+
+  - source_matchers:
+      - 'alertname="EnlaceWANOuSondaIndisponivel"'
+    target_matchers:
+      - 'job=~"blackbox_http|blackbox_dns|blackbox_icmp"'
+
+receivers:
+  - name: "email-equipe"
+    email_configs:
+      - to: "${ALERT_EMAIL_TO}"
+        send_resolved: true
+        headers:
+          Subject: '[Cafe Planalto][{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+        html: |
+          <h3>Alerta Café Planalto — {{ .Status | toUpper }}</h3>
+          <p><strong>Alerta:</strong> {{ .CommonLabels.alertname }}</p>
+          <p><strong>Severidade:</strong> {{ .CommonLabels.severity }} | <strong>Serviço:</strong> {{ .CommonLabels.servico }}</p>
+          <ul>
+          {{ range .Alerts }}
+            <li>
+              <strong>Status:</strong> {{ .Status | toUpper }}<br/>
+              <strong>Resumo:</strong> {{ .Annotations.summary }}<br/>
+              <strong>Detalhes:</strong> {{ .Annotations.description }}<br/>
+              <strong>Início:</strong> {{ .StartsAt }}
+            </li>
+          {{ end }}
+          </ul>

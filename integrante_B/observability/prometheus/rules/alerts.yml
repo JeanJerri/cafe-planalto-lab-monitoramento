@@ -1,0 +1,112 @@
+groups:
+  - name: cafeplanalto_alertas
+    rules:
+      - alert: EnlaceWANOuSondaIndisponivel
+        expr: up{job="blackbox_exporter"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          servico: rede
+          tipo: causa
+        annotations:
+          summary: "Sonda Blackbox da filial inacessível"
+          description: "O Prometheus perdeu comunicação com a sonda na filial (job=blackbox_exporter, up == 0). Possível queda da WAN ou do nó sonda."
+
+      - alert: AlvoPrometheusFora
+        expr: up{job!="blackbox_exporter"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          servico: infra
+          tipo: causa
+        annotations:
+          summary: "Alvo {{ $labels.job }} indisponível ({{ $labels.instance }})"
+          description: "O Prometheus não consegue coletar métricas de {{ $labels.job }} ({{ $labels.instance }}) há mais de 30s."
+
+      - alert: LojaIndisponivelHTTP
+        expr: probe_success{job="blackbox_http"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          servico: loja
+          tipo: sintoma
+        annotations:
+          summary: "Loja Café Planalto indisponível via HTTP ({{ $labels.instance }})"
+          description: "A sonda HTTP da filial falhou ao consultar {{ $labels.instance }} por mais de 15s."
+
+      - alert: DNSInternoFalhando
+        expr: probe_success{job="blackbox_dns"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          servico: dns
+          tipo: causa
+        annotations:
+          summary: "DNS interno falhando para loja.cafeplanalto.lab"
+          description: "A sonda DNS na filial não recebeu resposta NOERROR do CoreDNS ({{ $labels.instance }}) há mais de 15s."
+
+      - alert: FalhaICMPDestino
+        expr: probe_success{job="blackbox_icmp"} == 0
+        for: 20s
+        labels:
+          severity: warning
+          servico: rede
+          tipo: causa
+        annotations:
+          summary: "Falha de ping (ICMP) até {{ $labels.instance }}"
+          description: "A sonda da filial não recebeu resposta ICMP de {{ $labels.instance }} nos últimos 20s."
+
+      - alert: LatenciaAltaSondaHTTP
+        expr: probe_duration_seconds{job="blackbox_http"} > 0.3
+        for: 30s
+        labels:
+          severity: warning
+          servico: loja
+          tipo: sintoma
+        annotations:
+          summary: "Latência HTTP elevada vista pela filial ({{ $labels.instance }})"
+          description: "A sonda HTTP está levando {{ printf \"%.3f\" $value }}s (acima de 0.3s) em {{ $labels.instance }}."
+
+      - alert: BancoPostgreSQLFora
+        expr: pg_up == 0
+        for: 15s
+        labels:
+          severity: critical
+          servico: db
+          tipo: causa
+        annotations:
+          summary: "PostgreSQL da loja está fora do ar"
+          description: "O postgres_exporter reportou pg_up == 0 por mais de 15s. Verifique o contêiner db."
+
+      - alert: TaxaDeErros5xxAlta
+        expr: (sum(rate(http_requests_total{status=~"5.."}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 0.001)) > 0.05
+        for: 20s
+        labels:
+          severity: critical
+          servico: api
+          tipo: sintoma
+        annotations:
+          summary: "Taxa de erros 5xx da API acima de 5%"
+          description: "A proporção de respostas HTTP 5xx na API está em {{ printf \"%.1f\" (mul $value 100) }}% no último minuto."
+
+      - alert: LatenciaP95AcimaDoSLO
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{rota=~"/produtos|/pedidos"}[1m]))) > 0.3
+        for: 30s
+        labels:
+          severity: warning
+          servico: api
+          tipo: sintoma
+        annotations:
+          summary: "Latência p95 da API acima do SLO de 300ms"
+          description: "O percentil 95 de latência nas rotas da loja está em {{ printf \"%.3f\" $value }}s (meta < 0.300s)."
+
+      - alert: MemoriaAltaHost
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 2m
+        labels:
+          severity: warning
+          servico: infra
+          tipo: causa
+        annotations:
+          summary: "Uso de memória acima de 85% no host"
+          description: "A utilização de memória reportada pelo node_exporter passou de 85% (atual: {{ printf \"%.1f\" (mul $value 100) }}%)."
