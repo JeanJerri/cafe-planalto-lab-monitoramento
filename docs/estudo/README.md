@@ -23,19 +23,21 @@ Esta pasta organiza o conteúdo do trabalho prático em **módulos curtos e prog
    - HTTP/REST/JSON, Docker (`Dockerfile`, `iproute2`), Nginx como proxy reverso + `stub_status`, API FastAPI, métricas Prometheus (Counter, Histogram, p95, Gauge, cardinalidade), logs JSON, `/admin/caos`, `/health` e resiliência com PostgreSQL.
 5. [**B2 — Gerador de Carga Contínua (`k6`) e Testes Locais**](integrante_B/02_Gerador_de_Carga_e_Testes_Locais.md)
    - Como funciona o `k6` simulando clientes comprando café continuamente (`5–20 req/s`) e passo a passo prático para subir tudo com `docker compose`, testar no navegador/`curl` e simular as falhas 4, 5 e 6 localmente no WSL2.
+6. [**B3 — Exporters, Blackbox, Prometheus e Alertmanager (E-mail)**](integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md)
+   - Exporters (`node`, `cAdvisor`, `postgres`, `nginx`), sonda Blackbox (HTTP, DNS, ICMP), PromQL do zero, regras `alerts.yml` (sintoma vs. causa), Alertmanager com Gmail + Senha de App e **roteiro completo de testes manuais visando os itens P1, P2 e P3 da apresentação**.
 
-*(Os módulos `B3` a `B5` — Exporters/Prometheus/Alertmanager, Loki, Dashboards Grafana/SLOs — e `06 — Ensaios de Caos e Arguição` serão adicionados nas próximas fases.)*
+*(Os módulos `B4` e `B5` — Logs no Loki + Dashboards Grafana USE/RED/Negócio/SLOs — e `06 — Ensaios de Caos e Arguição` serão adicionados nas próximas fases.)*
 
 ---
 
 ## Mapa de Requisitos do Barema (100 pontos)
 
-| Bloco | Pontos | Responsável | Onde está no repositório |
+| Bloco | Pontos | Responsável | Status atual no repositório |
 | --- | --- | --- | --- |
-| **I. Infraestrutura (I1–I4)** | 15 pts | Integrante A (com contratos comuns) | `integrante_A/infra/`, `integrante_A/dns/` |
-| **A. Aplicação (A1–A3)** | 10 pts | **Integrante B** | `integrante_B/{web,api,db,loadgen}/` |
-| **Z. Zabbix (Z1–Z8)** | 25 pts | Integrante A | `integrante_A/zabbix/`, `integrante_A/snmp/` |
-| **P. Prometheus + Grafana (P1–P4)** | 20 pts | **Integrante B** | *Fases 2 e 3 em `integrante_B/`* |
+| **I. Infraestrutura (I1–I4)** | 15 pts | Integrante A (com contratos comuns) | Base em `integrante_A/infra/` e `dns/` (integração final na Fase 4) |
+| **A. Aplicação (A1–A3)** | 10 pts | **Integrante B** | Pronto em `integrante_B/{web,api,db,loadgen}/` (validado em Compose local) |
+| **Z. Zabbix (Z1–Z8)** | 25 pts | Integrante A | Stack base + SNMP em `integrante_A/zabbix/` e `snmp/` |
+| **P. Prometheus + Grafana (P1–P4)** | 20 pts | **Integrante B** | **P1, P2 e P3 prontos** em `integrante_B/observability/` (P4 na Fase 3) |
 | **O. Observabilidade / Loki / SLOs (O1–O3)** | 10 pts | **Integrante B** | *Fase 3 em `integrante_B/`* |
-| **Falhas ao vivo (2 sorteadas)** | 12 pts | **Ambos (juntos)** | *Fase 5* |
-| **Relatório comparativo e README** | 8 pts | **Ambos (tópicos invertidos)** | `README.md` e relatório PDF final |
+| **Falhas ao vivo (2 sorteadas)** | 12 pts | **Ambos (juntos)** | Ensaios locais B (Fases 2–3) + ensaios integrados (Fase 5) |
+| **Relatório comparativo e README** | 8 pts | **Ambos (tópicos invertidos)** | Base em andamento + consolidação final |
