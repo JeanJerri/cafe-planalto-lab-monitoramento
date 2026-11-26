@@ -88,7 +88,7 @@ docker exec cafeplanalto-dev-alertmanager amtool check-config /tmp/alertmanager.
 **Esperado:** os 3 comandos retornam **`SUCCESS`**.
 
 ### Passo 3.3 — URLs para abrir no navegador do Windows
-*(O WSL2 encaminha `localhost` automaticamente para o Windows.)*
+*(O WSL2 encaminha `localhost` automaticamente para o Windows. Se alguma porta recusar com `localhost` por causa de IPv6 `::1`, use **`127.0.0.1`** no lugar — ex.: `http://127.0.0.1:8088` e `http://127.0.0.1:9090/targets`.)*
 
 | Serviço | URL | O que conferir |
 | --- | --- | --- |
@@ -298,8 +298,8 @@ for br in sw-servicos sw-filial sw-gerencia; do
   sudo ip link set "$br" up
 done
 
-# 3. Subir a topologia no Containerlab
-sudo containerlab deploy -t infra/topology.yml
+# 3. Subir a topologia no Containerlab (--reconfigure evita contêineres antigos sem IPs/rotas)
+sudo containerlab deploy -t infra/topology.yml --reconfigure
 ```
 
 ### Passo 4.3 — Checklist de Testes Manuais da Parte A
@@ -327,12 +327,20 @@ sudo containerlab deploy -t infra/topology.yml
    sudo docker exec clab-cafeplanalto-host-gerencia snmpwalk -v2c -c "$COMMUNITY" 172.20.99.1 system
    sudo docker exec clab-cafeplanalto-host-gerencia snmpwalk -v2c -c "$COMMUNITY" 10.0.0.2 system
    ```
-5. **Falha 1 (Queda da WAN) + Prova da Regra de Ouro (`eth0`):**
+5. **Falha 1 (Queda da WAN) + Prova da Regra de Ouro (`eth0`) + Recuperação das rotas:**
+   > **Importante (comportamento do Linux na Falha 1):** quando derrubamos `eth1` com `ip link set eth1 down`, o kernel Linux **apaga automaticamente** as rotas estáticas que usavam `eth1` (`via 10.0.0.1` no `r-filial` e `via 10.0.0.2` no `r-matriz`). Ao religar `eth1 up`, é preciso readicionar as rotas estáticas (ou rodar `containerlab deploy ... --reconfigure`).
+
    ```bash
+   # Derruba a WAN
    sudo docker exec clab-cafeplanalto-r-filial ip link set eth1 down
    sudo docker exec clab-cafeplanalto-cliente-carga ping -c 2 -W 1 172.20.10.21                         # Deve dar 100% loss
    sudo docker exec clab-cafeplanalto-host-gerencia snmpget -v2c -c "$COMMUNITY" -t 2 -r 1 10.0.0.2 sysName.0  # Deve dar timeout
+
+   # Religa a WAN e restaura as rotas estáticas que o kernel removeu no down
    sudo docker exec clab-cafeplanalto-r-filial ip link set eth1 up
+   sudo docker exec clab-cafeplanalto-r-filial ip route add 172.20.10.0/24 via 10.0.0.1
+   sudo docker exec clab-cafeplanalto-r-filial ip route add 172.20.99.0/24 via 10.0.0.1
+   sudo docker exec clab-cafeplanalto-cliente-carga ping -c 2 172.20.10.21                              # Volta a 0% loss!
    ```
 6. **Teste de suporte ao `tc netem` no WSL2 (Falha 3):**
    ```bash
@@ -353,6 +361,12 @@ docker network create zabbix-acesso 2>/dev/null || true
 docker compose up -d
 docker compose ps
 ```
+- **Na primeira subida, aguarde ~30 a 90 segundos:** o `zabbix-server` cria automaticamente todas as tabelas no PostgreSQL na primeira execução. Se você abrir o navegador antes disso, aparecerá `Unable to determine current Zabbix database version: the table "dbversion" was not found`. Acompanhe a importação pelos logs e, assim que estabilizar, atualize a página (`F5`):
+  ```bash
+  docker logs -f cafeplanalto-zabbix-server
+  # Aguarde aparecer mensagens de inicialização concluída ("server #0 started") e pressione Ctrl+C
+  ```
+  *(Se o erro persistir por mais de 2 minutos ou se o volume PostgreSQL antigo tiver outra senha no `.env`, recrie limpo com `docker compose down -v && docker compose up -d`.)*
 - Abra **`http://127.0.0.1:8080`** no navegador (usuário padrão: `Admin` / senha padrão: `zabbix`).
 - Para encerrar o Zabbix:
   ```bash
