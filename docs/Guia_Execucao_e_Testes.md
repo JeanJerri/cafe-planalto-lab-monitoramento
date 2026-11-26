@@ -229,28 +229,59 @@ docker compose down
 > **Dica de memória:** se estiver em um notebook com 8 GB de RAM, rode `docker compose down` em `integrante_B/` antes de subir a topologia da Parte A.
 
 ### Passo 4.1 — Conferir arquivos locais ignorados em `integrante_A/`
-Por segurança, o `.gitignore` não sobe senhas para o GitHub. Se você acabou de fazer um `git clone`, crie os arquivos abaixo em `~/Projeto_Final/integrante_A/` *(se já existirem na sua máquina, pule para o Passo 4.2)*:
-- `integrante_A/zabbix/.env`:
-  ```env
-  POSTGRES_PASSWORD=defina_uma_senha_segura
-  ```
-- `integrante_A/snmp/.community`: uma linha com a *community* SNMP combinada pela dupla.
-- `integrante_A/snmp/snmpd-matriz.conf`:
-  ```conf
-  agentaddress udp:172.20.99.1:161
-  rocommunity SUA_COMMUNITY 172.20.99.0/24
-  sysLocation Matriz - Cafe Planalto
-  sysContact Equipe de Infraestrutura
-  sysName r-matriz
-  ```
-- `integrante_A/snmp/snmpd-filial.conf`:
-  ```conf
-  agentaddress udp:10.0.0.2:161
-  rocommunity SUA_COMMUNITY 172.20.99.0/24
-  sysLocation Filial - Cafe Planalto
-  sysContact Equipe de Infraestrutura
-  sysName r-filial
-  ```
+Por segurança, o `.gitignore` não sobe senhas para o GitHub (`integrante_A/zabbix/.env`, `integrante_A/snmp/.community` e `integrante_A/snmp/snmpd-*.conf`).
+
+* **Sobre as senhas:**
+  * **`POSTGRES_PASSWORD` (do Zabbix):** pode ser qualquer senha alfanumérica na primeira subida (evite caracteres como `$` que o shell interpreta). Se você já subiu o Zabbix antes e o volume `cafeplanalto-zabbix-postgres-data` existir, precisa manter a mesma senha ou apagar o volume com `docker compose down -v`.
+  * **`community` (do SNMP):** pode ser qualquer palavra/chave sem espaços, desde que seja **idêntica** em `.community`, `snmpd-matriz.conf`, `snmpd-filial.conf` e na macro `{$SNMP_COMMUNITY}` dentro do Zabbix.
+
+Escolha **uma** das duas opções abaixo *(se esses arquivos já estiverem em `~/Projeto_Final/integrante_A/`, pule para o Passo 4.2)*:
+
+#### Opção A — Copiar os arquivos que já estão no seu PC Windows (recomendado)
+```bash
+mkdir -p ~/Projeto_Final/integrante_A/snmp ~/Projeto_Final/integrante_A/zabbix
+
+cp /mnt/c/Users/jeanj/Projetos/Projeto_E_Administracao_De_Redes/Projeto_Final/integrante_A/zabbix/.env ~/Projeto_Final/integrante_A/zabbix/.env
+cp /mnt/c/Users/jeanj/Projetos/Projeto_E_Administracao_De_Redes/Projeto_Final/integrante_A/snmp/.community ~/Projeto_Final/integrante_A/snmp/.community
+cp /mnt/c/Users/jeanj/Projetos/Projeto_E_Administracao_De_Redes/Projeto_Final/integrante_A/snmp/snmpd-matriz.conf ~/Projeto_Final/integrante_A/snmp/snmpd-matriz.conf
+cp /mnt/c/Users/jeanj/Projetos/Projeto_E_Administracao_De_Redes/Projeto_Final/integrante_A/snmp/snmpd-filial.conf ~/Projeto_Final/integrante_A/snmp/snmpd-filial.conf
+
+# Garante quebra de linha Unix (LF) nos arquivos copiados do Windows
+sed -i 's/\r$//' ~/Projeto_Final/integrante_A/zabbix/.env \
+  ~/Projeto_Final/integrante_A/snmp/.community \
+  ~/Projeto_Final/integrante_A/snmp/snmpd-matriz.conf \
+  ~/Projeto_Final/integrante_A/snmp/snmpd-filial.conf
+```
+
+#### Opção B — Criar as pastas e arquivos do zero (caso tenha feito `git clone` em outro PC)
+Substitua `SUA_SENHA_POSTGRES` e `SUA_COMMUNITY_SNMP` pelos valores desejados:
+```bash
+mkdir -p ~/Projeto_Final/integrante_A/snmp ~/Projeto_Final/integrante_A/zabbix
+
+cat << 'EOF' > ~/Projeto_Final/integrante_A/zabbix/.env
+POSTGRES_PASSWORD=SUA_SENHA_POSTGRES
+EOF
+
+cat << 'EOF' > ~/Projeto_Final/integrante_A/snmp/.community
+SUA_COMMUNITY_SNMP
+EOF
+
+cat << 'EOF' > ~/Projeto_Final/integrante_A/snmp/snmpd-matriz.conf
+agentaddress udp:172.20.99.1:161
+rocommunity SUA_COMMUNITY_SNMP 172.20.99.0/24
+sysLocation Matriz - Cafe Planalto
+sysContact Equipe de Infraestrutura
+sysName r-matriz
+EOF
+
+cat << 'EOF' > ~/Projeto_Final/integrante_A/snmp/snmpd-filial.conf
+agentaddress udp:10.0.0.2:161
+rocommunity SUA_COMMUNITY_SNMP 172.20.99.0/24
+sysLocation Filial - Cafe Planalto
+sysContact Equipe de Infraestrutura
+sysName r-filial
+EOF
+```
 
 ### Passo 4.2 — Build das imagens e subida da topologia Containerlab
 *(Atenção: o `topology.yml` usa a tag `:1.1` nos roteadores e `:1.0` nos hosts, por isso passamos os dois `-t` no build.)*
