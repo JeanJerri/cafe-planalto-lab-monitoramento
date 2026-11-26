@@ -1,103 +1,94 @@
-# B1 — Aplicação em 3 Camadas: Nginx, API FastAPI e PostgreSQL (Integrante B)
+# B1 — Aplicação em 3 Camadas: Nginx, API FastAPI e PostgreSQL (Do Zero)
 
-Este guia explica do zero toda a arquitetura da **Loja Café Planalto** construída em [`integrante_B/`](../../integrante_B/): como as três camadas conversam, como a API mede métricas/logs e como ela resiste à queda do banco de dados.
-
----
-
-## 1. Conceitos Básicos: HTTP, REST, JSON e Docker
-
-### 1.1 Cliente, Servidor, IP e Porta
-- **Cliente:** quem faz a requisição (navegador, `curl` ou gerador de carga `k6`).
-- **Servidor:** programa que fica escutando uma **porta** dentro de um **IP** (ex.: `172.20.10.20:80` para o Nginx; `172.20.10.21:8000` para a API; `172.20.10.22:5432` para o PostgreSQL).
-
-### 1.2 HTTP, API REST e JSON
-O protocolo **HTTP** funciona por requisição e resposta:
-- **Método:** `GET` (consultar/listar, ex.: `/produtos`, `/health`, `/metrics`) e `POST` (enviar dados para criar/executar, ex.: `/pedidos`, `/admin/caos`).
-- **Status Code:**
-  - `200 OK`: sucesso na leitura/operação.
-  - `201 Created`: novo pedido gravado com sucesso.
-  - `404 Not Found`: produto inexistente.
-  - `500 Internal Server Error`: erro interno (simulado de propósito pelo `/admin/caos` na Falha 6).
-  - `503 Service Unavailable`: a API está viva, mas o banco PostgreSQL atrás dela está fora do ar (Falha 4).
-- **JSON:** formato de texto estruturado em pares `"chave": valor` (ex.: `{"produto_id": 1, "quantidade": 2}`).
-
-### 1.3 Docker, `Dockerfile` e por que instalamos `iproute2`
-- **VM vs. Contêiner:** uma VM virtualiza um computador inteiro (gasta GBs de RAM). Um contêiner Docker compartilha o kernel do Linux do hospedeiro, subindo em segundos com poucos MB.
-- **`Dockerfile`:** receita de texto para montar uma imagem.
-- **`iproute2`:** pacote instalado nos Dockerfiles de `web`, `api`, `db` e `loadgen`. Ele fornece o comando `ip` (`ip addr`, `ip route`), que o Containerlab executa dentro de cada contêiner ao montar as interfaces `eth1` e as rotas estáticas!
+A melhor forma de entender programação web sem decorar teoria é **seguir o caminho de um único clique no botão "Fazer Pedido"** na tela da loja (`http://127.0.0.1:8088`).
 
 ---
 
-## 2. Arquitetura em 3 Camadas da Loja Café Planalto
+## 1. O Básico: Cliente, Servidor, HTTP, JSON e Raio-X
+
+### Por que isso existe?
+O seu navegador (Chrome/Edge) mostra telas bonitas para humanos, mas o banco de dados não fala HTML. Eles conversam usando um idioma padrão chamado **HTTP** trocando mensagens em texto estruturado chamado **JSON**.
+
+Toda conversa HTTP tem 4 peças simples:
+1. **IP + Porta:** onde o programa atende (como `IP = prédio` e `Porta = número da sala`; ex.: Nginx na porta `80`, API Python na porta `8000`, PostgreSQL na porta `5432`).
+2. **Método (verbo):**
+   - **`GET`** = só consultar/ler (ex.: `GET /produtos` lista os 5 cafés).
+   - **`POST`** = enviar dados para criar ou mudar algo (ex.: `POST /pedidos` cria um pedido; `POST /admin/caos` liga defeitos simulados).
+3. **Status Code (o código de 3 dígitos da resposta):**
+   - **`200 OK`** = deu certo.
+   - **`201 Created`** = algo novo foi gravado no banco com sucesso.
+   - **`404 Not Found`** = pediu algo que não existe (ex.: café ID `9999`).
+   - **`500 Internal Server Error`** = erro dentro da API (simulado na Falha 6).
+   - **`503 Service Unavailable`** = a API está viva, mas o banco atrás dela caiu (Falha 4).
+4. **JSON:** texto organizado em `"chave": valor` (ex.: `{"produto_id": 1, "quantidade": 2}`).
+
+### Veja funcionando agora na sua tela (10 segundos)
+1. Abra **`http://127.0.0.1:8088`** no navegador.
+2. Clique em **"Fazer Pedido"** em qualquer café.
+3. Clique na aba **"Laboratório de Caos & Raio-X HTTP"**: ali você vê o método exato (`POST /pedidos`), o status (`201`), o tempo em `ms`, o **`X-Trace-Id`** e o **JSON completo** devolvido pela API!
+
+---
+
+## 2. Docker e por que instalamos `iproute2`
+
+- **VM vs. Contêiner Docker:** uma VM simula um PC inteiro (gasta ~1 GB de RAM cada). Um contêiner compartilha o mesmo Linux da máquina e sobe em 1 segundo gastando poucos MB.
+- **`Dockerfile` → Imagem → Contêiner:** o `Dockerfile` é a **receita**, `docker build` cria o **bolo pronto (imagem)** e `docker run`/`compose` coloca o **bolo na mesa rodando (contêiner)**.
+- **Por que `iproute2` está em todos os nossos Dockerfiles (`web`, `api`, `db`, `loadgen`)?** Porque imagens enxutas (`alpine`, `python:slim`) não vêm com o comando `ip`. Quando o Containerlab subir os contêineres na topologia da dupla, ele roda `ip addr add` e `ip route add` lá dentro — sem `iproute2`, a rede não subiria!
+
+---
+
+## 3. Por que dividimos a Loja em 3 Camadas (`web → api → db`)?
 
 ```text
-  Cliente / Filial (172.20.20.20)
+  Navegador / Filial
          │  HTTP :80 (loja.cafeplanalto.lab)
          ▼
   [1] WEB — Nginx (172.20.10.20)
-         │  • Serve a página HTML em "/"
-         │  • Proxy reverso para /produtos, /pedidos, /health, /admin/caos
-         │  • Gera X-Trace-Id e imprime access log em JSON
-         │  • Porta :8080/nginx_status (stub_status para exporters/Zabbix)
+         │  Recepção: entrega index.html, repassa /produtos e /pedidos, cria X-Trace-Id
          ▼  HTTP :8000
-  [2] API — Python + FastAPI + Uvicorn (172.20.10.21)
-         │  • Regras da loja + middleware de métricas, logs JSON e caos
-         │  • Pool de conexões (psycopg_pool) com retry e reconexão automática
+  [2] API — FastAPI + Uvicorn (172.20.10.21)
+         │  Cérebro: regras da loja, métricas, logs JSON e botão /admin/caos
          ▼  TCP :5432
-  [3] DB — PostgreSQL 16 (172.20.10.22)
-            • Tabelas "produtos" (5 cafés) e "pedidos"
+  [3] DB — PostgreSQL (172.20.10.22)
+            Cofre: guarda produtos e pedidos no disco mesmo se reiniciar
 ```
 
-### Camada 1: `web` — Nginx ([`integrante_B/web/`](../../integrante_B/web/))
-- **Por que usar um Proxy Reverso?** O usuário acessa um endereço único padrão na porta `80` (`http://loja.cafeplanalto.lab`). O Nginx entrega a página estática [`index.html`](../../integrante_B/web/html/index.html) em `/` e encaminha chamadas de API (`/produtos`, `/pedidos`, `/health`, `/admin/caos`) para a API Python na porta `8000`.
-- **Correlação (`X-Trace-Id`):** em [`nginx.conf`](../../integrante_B/web/nginx.conf), se o cliente não enviar `X-Trace-Id`, o Nginx cria um ID único (`$request_id`), envia para a API e grava nos dois logs (Nginx e API).
-- **`NGINX_ENVSUBST_FILTER="^API_UPSTREAM$"`:** no [`Dockerfile`](../../integrante_B/web/Dockerfile), restringimos a substituição de variáveis de ambiente apenas a `${API_UPSTREAM}`, evitando que o entrypoint oficial do Nginx apague variáveis internas como `$uri`, `$status` e `$request_id`.
-- **`stub_status` (porta `8080/nginx_status`):** página interna com contadores de conexões ativas e requisições atendidas, usada pelo `nginx-prometheus-exporter` (Integrante B) e pelo template Nginx do Zabbix (Integrante A).
+### Camada 1: `web` — Nginx ([`integrante_B/web/`](../../../integrante_B/web/))
+- **Por que não ligar direto na API?** O Nginx funciona como **recepcionista (proxy reverso)** na porta padrão `80`:
+  - Quem abre `/` recebe o site visual ([`index.html`](../../../integrante_B/web/html/index.html), 100% offline sem depender da internet).
+  - Quem chama `/produtos`, `/pedidos`, `/health` ou `/admin/caos` é encaminhado para a API na porta `8000` ([`default.conf.template`](../../../integrante_B/web/templates/default.conf.template)).
+  - Ele também carimba um código de rastreio **`X-Trace-Id`** em cada requisição e expõe um painel técnico interno na porta `8080/nginx_status` (`stub_status`) para monitoramento.
+- **Valide em 10 segundos:** abra `http://127.0.0.1:8089/nginx_status` e veja o total de requisições entrando em tempo real.
 
-### Camada 2: `api` — FastAPI ([`integrante_B/api/`](../../integrante_B/api/))
-- **FastAPI + Pydantic + Uvicorn:** `FastAPI` define as rotas, `Pydantic` ([`models.py`](../../integrante_B/api/src/models.py)) valida entradas inválidas (ex.: `quantidade <= 0` ou `taxa_erro > 1.0`) e `Uvicorn` é o servidor web assíncrono (`async/await`) que atende múltiplos clientes sem travar durante atrasos de caos.
-- **Middleware (`observability_and_chaos_middleware` em [`main.py`](../../integrante_B/api/src/main.py)):** funciona como uma catraca única que, em toda requisição:
-  1. Inicia o cronômetro e extrai `trace_id` (`traceparent` ou `X-Trace-Id`).
-  2. Se a rota não for isenta, aplica atraso (`await asyncio.sleep`) ou sorteia erro HTTP `500` conforme `/admin/caos`.
-  3. Executa a rota (capturando `DatabaseUnavailableError` como HTTP `503`).
-  4. Atualiza as métricas Prometheus e imprime 1 linha de **log JSON no `stdout`** (com `PYTHONUNBUFFERED=1` e `--no-access-log` para não misturar texto puro).
+### Camada 2: `api` — FastAPI ([`integrante_B/api/`](../../../integrante_B/api/))
+- **FastAPI** define as rotas (`/produtos`, `/pedidos`, `/health`, `/metrics`, `/admin/caos`). **Pydantic** ([`models.py`](../../../integrante_B/api/src/models.py)) barra dados inválidos antes de entrarem (ex.: quantidade negativa). **Uvicorn** recebe várias conexões ao mesmo tempo de forma assíncrona (`await asyncio.sleep` faz esperar sem travar outros clientes).
+- **O segredo do `observability_and_chaos_middleware` ([`main.py`](../../../integrante_B/api/src/main.py)):** imagine uma **catraca na entrada/saída** da API. Toda requisição passa por ela:
+  1. Liga um cronômetro e lê o `X-Trace-Id`.
+  2. Se a rota não for protegida, aplica a lentidão ou erro 500 do `/admin/caos`.
+  3. Executa a rota e, na saída, **soma os contadores do Prometheus + imprime 1 linha JSON no terminal (`stdout`)**.
 
-### Camada 3: `db` — PostgreSQL ([`integrante_B/db/`](../../integrante_B/db/))
-- O [`init.sql`](../../integrante_B/db/init.sql) cria as tabelas `produtos` e `pedidos` e insere os 5 cafés especiais de forma idempotente (`ON CONFLICT (id) DO NOTHING`).
-- **Resiliência na API ([`repository.py`](../../integrante_B/api/src/repository.py)):**
-  - **Startup seguro:** se a API subir alguns segundos antes do PostgreSQL terminar de inicializar, `PostgresRepository.initialize()` tenta até `DB_INIT_RETRIES` (padrão `10` vezes). Mesmo se o banco estiver completamente desligado no startup, a API não trava/morre — ela sobe respondendo `503` no `/health` e cria o schema automaticamente assim que o banco ficar online.
-  - **Recuperação após Falha 4 (`docker stop` / `docker start`):** usamos `check=ConnectionPool.check_connection` e `pool_timeout=3.0s`. Quando o banco para, as requisições falham rápido com `503` (sem travar 30s) e, quando o banco volta, conexões quebradas são descartadas automaticamente sem precisar reiniciar a API.
-
----
-
-## 3. Os 3 Sinais, Métricas Prometheus e Cardinalidade
-
-1. **Métricas (números agregados ao longo do tempo — coleta *Pull*):**
-   O Prometheus bate a cada 15s em `GET /metrics`. Em [`metrics.py`](../../integrante_B/api/src/metrics.py):
-   - **`Counter` (só sobe):** `http_requests_total{rota, metodo, status}`, `pedidos_criados_total`, `pedidos_valor_reais_total`.
-   - **`Histogram` (faixas/buckets para medir latência `p95`):** `http_request_duration_seconds{rota}` com bucket específico em `0.3` (300 ms, alinhado ao SLO). A média engana quando poucos clientes demoram muito; o `p95` mostra o limite de tempo dos 95% mais rápidos.
-   - **`Gauge` (sobe e desce):** `db_pool_conexoes_em_uso` mostra quantas conexões do pool estão abertas e ocupadas naquele instante.
-2. **Logs (eventos detalhados em JSON no `stdout`):** contêm `timestamp`, `nivel`, `rota`, `status`, `duracao_ms`, `pedido_id`, `trace_id`. Em Docker, não salvamos em arquivo interno descartável: imprimimos no `stdout` para o coletor enviar ao Loki.
-3. **Traces (bônus):** caminho `web → api → db` amarrado pelo `trace_id` já propagado entre Nginx e FastAPI.
-
-### Por que nunca colocar `pedido_id` ou `cliente` como label no Prometheus?
-Cada combinação única de labels vira uma **série temporal nova na RAM do Prometheus** (*alta cardinalidade*). Colocar `pedido_id` criaria milhares de séries infinitas e derrubaria o Prometheus por falta de memória. Dados individuais sempre vão para os **logs JSON**, nunca para labels de métricas.
-
-### Por que `/health`, `/metrics` e `/admin/caos` são imunes ao `/admin/caos`?
-Em [`chaos.py`](../../integrante_B/api/src/chaos.py):
-- Se `taxa_erro=1.0` afetasse `/admin/caos`, não seria possível desligar o caos depois.
-- Se afetasse `/metrics`, o Prometheus ficaria cego durante a falha.
-- `/health` precisa medir exclusivamente a saúde do banco (`200` com banco vivo, `503` com banco fora), diferenciando Falha 4 (banco parado) das Falhas 5 e 6 (caos na API).
+### Camada 3: `db` — PostgreSQL ([`integrante_B/db/`](../../../integrante_B/db/))
+- O [`init.sql`](../../../integrante_B/db/init.sql) cria as tabelas `produtos` e `pedidos` e cadastra os 5 cafés.
+- **O que é o Pool de Conexões ([`repository.py`](../../../integrante_B/api/src/repository.py))?** Abrir uma porta nova para o banco a cada clique é lento; o *pool* deixa alguns "guichês abertos" prontos para reuso.
+- **Por que nossa API não morre na Falha 4 (`docker stop db`)?** Configuramos `pool_timeout=3.0s` e `check_connection`. Se o banco cair, a API devolve **`503 Service Unavailable`** rapidamente (sem travar) e, quando o banco volta, reconecta sozinha sem precisar reiniciar a API!
+- **Valide + "E se eu quebrar?":** pare o banco (`docker stop cafeplanalto-dev-db`) e clique em **"Atualizar saúde"** no topo da loja — o badge fica vermelho (`503 / unavailable`). Religue o banco e clique de novo — volta para verde (`ok / postgres`)!
 
 ---
 
-## 4. Simulado de Arguição (Perguntas da Parte B)
+## 4. Os 3 Sinais: Métricas, Logs JSON, Cardinalidade e Caos
 
-1. **Qual a diferença entre Monitoramento e Observabilidade?**
-   > Monitoramento verifica estados conhecidos ("o serviço responde?", "o disco encheu?"). Observabilidade permite investigar a causa raiz de falhas desconhecidas combinando métricas (o que e quando piorou), logs (detalhe da requisição que falhou) e traces.
-2. **Coleta Pull vs. Push: qual o Prometheus usa e qual a vantagem?**
-   > Usa **Pull (*scraping*)**: o Prometheus busca os dados em `/metrics`. A API não precisa conhecer o IP do Prometheus e, se o alvo cair ou a WAN romper, o Prometheus detecta imediatamente com `up == 0`.
-3. **Por que `http_request_duration_seconds` é um Histograma e não um Gauge com a média?**
-   > Porque médias escondem picos de lentidão (*tail latency*). Buckets permitem calcular percentis como `p95` no Prometheus (`histogram_quantile`).
-4. **Como o código garante baixa cardinalidade nas métricas HTTP?**
-   > Usando apenas `rota` (template normalizado via `resolve_route_path`, jogando URLs inválidas para `/unmatched`), `metodo` e `status`, e deixando `pedido_id` e `cliente` exclusivamente nos logs JSON.
+### 4.1 Os 3 tipos de métricas em [`metrics.py`](../../../integrante_B/api/src/metrics.py)
+| Tipo | Analogia | Nossa métrica | Para que serve no painel |
+| --- | --- | --- | --- |
+| **`Counter`** | **Hodômetro do carro** (só sobe) | `http_requests_total`, `pedidos_criados_total`, `pedidos_valor_reais_total` | Calcular pedidos/min e taxa de erro usando `rate()`. |
+| **`Histogram`** | **Baldes de tempo** (faixas de ms) | `http_request_duration_seconds` (com balde exato em `0.3s`) | Calcular o **`p95`** (*95% dos clientes foram atendidos até X ms*). A média engana se 1 pessoa esperar 10s e 99 esperarem 10ms! |
+| **`Gauge`** | **Velocímetro** (sobe e desce) | `db_pool_conexoes_em_uso` | Mostrar quantas conexões do banco estão ocupadas **neste exato segundo**. |
+
+### 4.2 Por que `pedido_id` e `cliente` são PROIBIDOS como labels no Prometheus?
+Cada combinação diferente de labels (`{rota="/pedidos", status="201"}`) vira uma **série nova na memória RAM do Prometheus**. Se colocássemos `pedido_id`, após 100.000 pedidos o Prometheus teria 100.000 séries novas eternas e **travaria por falta de memória** (*alta cardinalidade*).
+- **Regra:** números gerais ficam nas **métricas**; detalhes únicos (`pedido_id`, `cliente`, `trace_id`) vão para os **logs JSON**.
+
+### 4.3 Por que `/health`, `/metrics` e `/admin/caos` são IMUNES ao caos ([`chaos.py`](../../../integrante_B/api/src/chaos.py))?
+1. **`/admin/caos` imune:** se `taxa_erro=1.0` (100% de erro) afetasse `/admin/caos`, você ficaria trancado para fora e nunca mais conseguiria desligar o caos!
+2. **`/metrics` imune:** se `/metrics` desse 500, o Prometheus ficaria cego e não enxergaria os erros acontecendo.
+3. **`/health` imune:** ele testa só o banco (`200` com banco vivo, `503` com banco morto), permitindo saber se a falha é na API (Falhas 5/6) ou no PostgreSQL (Falha 4).

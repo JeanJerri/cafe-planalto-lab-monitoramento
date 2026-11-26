@@ -1,47 +1,38 @@
 # B2 — Gerador de Carga Contínua com `k6` (Integrante B)
 
-Este módulo explica como funciona o nó **`cliente-carga`**, responsável por simular clientes comprando café na loja virtual a partir da Filial (**Requisito A3**).
+## 1. Por que isso existe?
+Imagine abrir um painel de monitoramento de uma loja onde ninguém está entrando para comprar nada: todos os gráficos ficariam **zerados** e, se o professor desligasse o banco ou injetasse erro 500, ninguém veria o gráfico de erros subir!
 
-> **Quer subir e testar na prática?** Siga o passo a passo completo em [`docs/Guia_Execucao_e_Testes.md`](../../Guia_Execucao_e_Testes.md).
-
----
-
-## 1. Por que precisamos de Carga Contínua?
-
-Sem tráfego chegando continuamente da Filial até a Matriz:
-- Os gráficos de requisições por segundo, faturamento e latência `p95` no Grafana ficariam **zerados/vazios**.
-- Falhas como **API lenta** (Falha 5) ou **20% de erro 500** (Falha 6) não gerariam amostras suficientes para disparar alertas automáticos no Prometheus/Alertmanager nem consumiriam o orçamento de erro (*Error Budget*).
-
-O roteiro da disciplina pede tráfego contínuo de **5 a 20 requisições por segundo** com uma mistura de consultas e criação de pedidos.
+Por isso o roteiro exige um robô chamado **`cliente-carga`** rodando na **Filial (`172.20.20.20`)**, simulando clientes reais navegando e comprando café o tempo todo (**5 a 20 requisições por segundo**).
 
 ---
 
-## 2. O que é o `k6` e como ele está montado em `integrante_B/loadgen/`
+## 2. Como funciona e onde está no projeto?
 
-**k6** (da Grafana Labs) é um gerador de carga leve em que escrevemos o comportamento dos clientes virtuais em JavaScript enquanto o motor em Go executa as requisições consumindo pouca RAM.
+Usamos o **`k6`**, uma ferramenta leve da Grafana Labs que dispara requisições HTTP em paralelo usando pouquíssima memória RAM.
 
-### 2.1 [`Dockerfile`](../../../integrante_B/loadgen/Dockerfile) (Multi-stage)
-- Copia apenas o binário pronto do `k6` (`grafana/k6:0.54.0`) para dentro de um `alpine:3.20`.
-- Instala também **`iproute2`**, `iputils` (`ping`), `traceroute`, `curl` e `bind-tools` (`dig`), permitindo que o mesmo contêiner na Filial (`172.20.20.20`) gere carga contínua e sirva para os testes de rede da apresentação.
-
-### 2.2 [`script.js`](../../../integrante_B/loadgen/script.js)
-- Usa o executor **`constant-arrival-rate`** configurado com `TARGET_RPS` (padrão `10 req/s`) para manter ritmo estável independentemente da lentidão da loja.
-- Em cada iteração, sorteia uma ação realista:
-  - **65%** `GET /produtos` (consulta ao catálogo)
-  - **25%** `POST /pedidos` (compra com `produto_id` aleatório de 1 a 5 e quantidade de 1 a 3)
-  - **5%** `GET /` (abertura da página inicial no Nginx)
-  - **5%** `GET /health` (verificação de saúde)
-- `discardResponseBodies: true`: descarta o corpo da resposta após ler o status HTTP para economizar memória RAM.
-
-### 2.3 [`entrypoint.sh`](../../../integrante_B/loadgen/entrypoint.sh)
-- Espera `STARTUP_DELAY` segundos para o Containerlab/Docker terminar de subir rotas e serviços.
-- Roda o `k6` dentro de um loop infinito (`while true`) para garantir que o tráfego nunca pare sozinho durante uma demonstração longa.
+Os 3 arquivos ficam em [`integrante_B/loadgen/`](../../../integrante_B/loadgen/):
+1. **[`Dockerfile`](../../../integrante_B/loadgen/Dockerfile):** junta o binário do `k6` com um Alpine Linux equipado com `iproute2`, `ping`, `traceroute`, `curl` e `dig` — assim o mesmo contêiner na Filial gera carga e serve para todos os testes de rede.
+2. **[`script.js`](../../../integrante_B/loadgen/script.js):** define o comportamento do "cliente virtual" usando `constant-arrival-rate` (`TARGET_RPS = 10` req/s):
+   - **65%** das vezes olha o catálogo (`GET /produtos`)
+   - **25%** das vezes compra um café aleatório (`POST /pedidos`)
+   - **5%** abre a página inicial (`GET /`) e **5%** checa `/health`
+   - *Por que `constant-arrival-rate` e não um `sleep` simples?* Se a API ficar lenta (`800ms`), um loop com `sleep` reduziria os acessos por segundo; o `constant-arrival-rate` mantém a pressão constante de `10 req/s` abrindo mais conexões virtuais.
+3. **[`entrypoint.sh`](../../../integrante_B/loadgen/entrypoint.sh):** espera `STARTUP_DELAY` segundos a rede subir e roda o `k6` dentro de um `while true` para nunca desligar sozinho.
 
 ---
 
-## 3. Perguntas rápidas de arguição
+## 3. Valide em 10 segundos + "E se eu tirasse isso?"
 
-1. **Por que o `cliente-carga` fica na LAN Filial (`172.20.20.20`) e não na LAN Serviços?**
-   > Para obrigar todo o tráfego da loja a atravessar `r-filial`, o enlace WAN (`10.0.0.0/30`) e `r-matriz`. Se ele ficasse na mesma LAN da loja, uma queda na WAN não afetaria os clientes simulados.
-2. **Qual a diferença entre `constant-arrival-rate` e um loop simples com `sleep`?**
-   > Um loop simples com `sleep` reduz a taxa de requisições quando a API fica lenta (pois espera a resposta antes do próximo `sleep`). O `constant-arrival-rate` mantém o ritmo constante (ex.: `10 req/s`) ajustando o número de usuários virtuais (VUs) automaticamente.
+1. No terminal Ubuntu, rode:
+   ```bash
+   docker logs --tail 8 cafeplanalto-dev-loadgen
+   ```
+2. Abra `http://127.0.0.1:8088`, clique na aba **"Pedidos Recentes"** e depois clique 2 vezes em **"Atualizar lista"** após 3 segundos: você verá o total de pedidos e o faturamento subindo sozinhos com pedidos do cliente `filial-carga`!
+3. **E se o `cliente-carga` ficasse na LAN Serviços em vez da Filial?** O tráfego não atravessaria o cabo WAN, então uma queda na WAN não interromperia as compras simuladas.
+
+---
+
+## 4. Pergunta rápida de arguição
+* **O que muda nos gráficos se desligarmos o `cliente-carga`?**
+  > A taxa de requisições (`rate(http_requests_total[1m])`) cai quase a zero (ficando apenas as sondas do Blackbox), os pedidos/min zeram e falhas na API (como `taxa_erro=0.2`) deixam de gerar erros visíveis porque não há clientes tentando comprar.

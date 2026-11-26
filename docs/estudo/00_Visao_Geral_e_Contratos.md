@@ -1,70 +1,73 @@
-# 00 — Visão Geral, Contratos do Ambiente e Linux × WSL2
+# 00 — Visão Geral, Contratos e a Regra de Ouro
 
-Este capítulo apresenta o cenário completo da empresa **Café Planalto**, os endereços combinados entre a dupla e os cuidados para rodar o laboratório no **Windows + WSL2 (usado por ambos os integrantes)** mantendo total compatibilidade com **Linux nativo / VM Ubuntu** (caso apresentem em uma VM ou computador do laboratório do campus).
-
----
-
-## 1. A História do Problema (O Desafio)
-
-A **Café Planalto** é uma torrefação fictícia de Vitória da Conquista (BA) que vende cafés especiais pela internet. A empresa possui duas unidades ligadas por um enlace de longa distância (**WAN**):
-- **Matriz:** hospeda o site/loja virtual, os servidores de DNS/banco e as duas plataformas de monitoramento.
-- **Filial:** unidade remota com atendentes e ferramentas que testam a loja **atravessando a WAN** (como clientes reais).
-
-No último mês, a loja caiu duas vezes (uma por falha no banco de dados e outra por queda da WAN) e a diretoria só soube pelos clientes. A missão da dupla é construir o laboratório virtual reproduzível e implantar **duas abordagens de monitoramento sobre o mesmo ambiente**:
-1. **Zabbix (Integrante A):** foco tradicional em rede e infraestrutura (roteadores via SNMP, ICMP, agentes Linux/Nginx/PostgreSQL, mapa e dependências de triggers).
-2. **Prometheus + Alertmanager + Grafana + Loki (Integrante B):** foco moderno em aplicação, contêineres, métricas de serviço, logs estruturados, sondas remotas e SLOs.
+Imagine que você não sabe nada de redes nem de monitoramento. Vamos começar olhando o "mapa da cidade" da empresa antes de entrar em qualquer código.
 
 ---
 
-## 2. Plano de Endereçamento Oficial (O "Contrato" da Dupla)
+## 1. A História da Café Planalto (Por que esse trabalho existe?)
 
-Para que os arquivos da Integrante A e do Integrante B se encaixem sem conflito, os IPs do roteiro são fixos:
-
-| Segmento | Rede CIDR | Nós e IPs exatos |
-| --- | --- | --- |
-| **WAN Matriz ↔ Filial** | `10.0.0.0/30` | `r-matriz` = `.1` · `r-filial` = `.2` |
-| **LAN Serviços (Matriz)** | `172.20.10.0/24` | Gateway = `.1` · `dns` = `.10` · `web` (Nginx) = `.20` · `api` (FastAPI) = `.21` · `db` (PostgreSQL) = `.22` |
-| **LAN Gerência (Matriz)** | `172.20.99.0/24` | Gateway = `.1` · `zabbix-server` = `.10` · `zabbix-web` = `.11` · `zabbix-db` = `.12` · `prometheus` = `.20` · `alertmanager` = `.21` · `grafana` = `.22` · `loki` = `.23` · *(apoio da A: `host-gerencia` = `.100`)* |
-| **LAN Filial** | `172.20.20.0/24` | Gateway = `.1` · `cliente-carga` = `.20` · `sonda` (Blackbox Exporter) = `.30` |
-| **Gerência Fora de Banda** | `172.30.0.0/24` | `eth0` de todos os nós — **exclusiva para administração e internet, NUNCA para coleta!** |
-
-### A Regra de Ouro (`eth0` vs. `eth1`)
-Quando o Containerlab cria qualquer contêiner, ele coloca uma interface `eth0` ligada na rede `172.30.0.0/24` (`clab-mgmt`) com uma rota padrão (`default`) para a internet.
-- Se uma ferramenta de monitoramento ou o gerador de carga enviar pacotes usando a `eth0`, o tráfego **dá um atalho fora da topologia** e **não atravessa os roteadores nem a WAN**.
-- Consequência: quando o professor derrubar o cabo WAN (`ip link set eth1 down`), o monitoramento continuaria enxergando tudo normal — **e o cenário de falha perderia o sentido**.
-- Por isso, todos os nós recebem rotas explícitas para `172.20.0.0/16` e `10.0.0.0/30` apontando para o gateway `.1` da própria LAN (via `eth1`).
-
----
-
-## 3. Organização de Pastas no Repositório
+A **Café Planalto** vende cafés especiais pela internet em Vitória da Conquista (BA) e tem dois prédios ligados por uma conexão de longa distância (**WAN**):
 
 ```text
-Projeto_Final/
-├── .gitignore            # Bloqueia .env, .venv/, snmp/.community, clab-cafeplanalto/, .agente/
-├── .gitattributes        # Força fim de linha LF em scripts, YAML, conf e Dockerfiles
-├── docs/                 # PDF oficial, Divisao.md e trilha de estudos (docs/estudo/)
-├── integrante_A/         # Infraestrutura de rede (Containerlab), DNS, SNMP e Zabbix
-└── integrante_B/         # Aplicação 3 camadas (web, api, db), carga k6 e observabilidade
+   PRÉDIO DA FILIAL                         CABO WAN                    PRÉDIO DA MATRIZ
+  ┌──────────────────┐                    10.0.0.0/30               ┌────────────────────────┐
+  │ • cliente-carga  │                   (.2)     (.1)              │ LAN Serviços (.10.x):  │
+  │ • sonda Blackbox ├──[r-filial]════════════════════════[r-matriz]┤   dns, web, api, db    │
+  │                  │                                              │ LAN Gerência (.99.x):  │
+  └──────────────────┘                                              │   Zabbix, Prometheus,  │
+   172.20.20.0/24                                                   │   Alertmanager, Grafana  │
+                                                                    └────────────────────────┘
 ```
+
+**O problema real:** no último mês, a loja caiu duas vezes (uma por problema no banco de dados e outra porque o cabo entre Filial e Matriz caiu) e ninguém da empresa percebeu antes dos clientes reclamarem.
+
+**Nossa missão:** montar esse ambiente em miniatura dentro do computador (usando contêineres Docker leves) e colocar **dois sistemas de vigilância** olhando o **mesmo ambiente**:
+
+| Ferramenta | Analogia | O que ela vigia melhor | Dono |
+| --- | --- | --- | --- |
+| **Zabbix** | **Médico do prédio e das estradas** | Roteadores (SNMP), cabos, se o servidor responde ping, CPU/disco, mapa da rede. | **Integrante A** |
+| **Prometheus + Grafana + Loki** | **Médico da loja e dos clientes** | Quantos pedidos/seg entram, quantos dão erro 500, quanto tempo o cliente espera (`p95`), logs detalhados e metas de qualidade (SLOs). | **Integrante B (você)** |
 
 ---
 
-## 4. Cuidados Essenciais: WSL2 (Ambos) e Compatibilidade com Linux Nativo
+## 2. Por que os IPs são fixos? (O "Contrato" da Dupla)
 
-Como tanto a Integrante A quanto o Integrante B desenvolvem no **Windows + WSL2** (um kernel Linux real rodando dentro do Windows), mantemos o projeto 100% compatível também com **Linux nativo / VM Ubuntu** — isso não atrapalha em nada e garante que tudo rode no laboratório do campus se necessário. Observe estes 5 cuidados práticos:
+Pense em um condomínio onde o carteiro precisa entregar cartas todo dia. Se cada casa mudasse de número toda manhã, ninguém entregaria nada.
+Como você faz a **loja e o Prometheus** (`integrante_B/`) e a Integrante A faz os **roteadores, DNS e Zabbix** (`integrante_A/`), o documento do professor trava os endereços para as duas metades se encaixarem sem conflito:
 
-1. **Fim de linha (`LF` vs `CRLF`):**
-   - Windows costuma salvar textos com `\r\n` (`CRLF`), enquanto Linux e shells `#!/bin/sh` exigem `\n` (`LF`). Um script `.sh` com `CRLF` falha com `not found` ao rodar dentro de um contêiner Alpine.
-   - **Solução aplicada:** o arquivo `.gitattributes` na raiz força `eol=lf` em todos os `.sh`, `.yml`, `.conf`, `.py`, `Dockerfile*` e `Corefile`.
-2. **Onde rodar Docker/Containerlab no WSL2 (`~/...` vs `/mnt/c/...`):**
-   - O disco do Windows aparece no Ubuntu WSL2 em `/mnt/c/...`, que passa por uma ponte de sistema de arquivos mais lenta e com permissões diferentes para bancos de dados (PostgreSQL/Prometheus/Loki).
-   - **Boa prática:** para rodar o laboratório no WSL2, clone ou copie o projeto dentro da sua pasta Linux nativa (`~/Projeto_Final`) e use **volumes nomeados** do Docker para persistência.
-3. **Sincronização de relógio no WSL2:**
-   - Métricas e logs dependem do horário exato para aparecerem alinhados. Se o notebook hibernou no Windows, o relógio do WSL2 pode atrasar e deve ser sincronizado antes dos testes.
-4. **Conflito de portas locais (`8080`):**
-   - O `zabbix-web` da Integrante A usa a porta local `8080`. Por isso, no `docker-compose.yml` de testes do Integrante B usamos **`8088`** para a loja (`web`), **`8089`** para o `stub_status` do Nginx e **`8085`** para o `cAdvisor`.
-5. **Particularidades do kernel WSL2 (`cAdvisor` e `tc netem` na Falha 3):**
-   - No WSL2, o `cAdvisor` usa flags específicas para não depender de `/dev/disk` inexistente.
-   - Na **Falha 3** (`tc qdisc ... netem`), o kernel padrão de algumas versões do WSL2 pode não trazer o módulo `sch_netem` habilitado, enquanto no Linux nativo/VM Ubuntu funciona direto.
+| Onde fica | Faixa de IP | Quem mora lá (e o número da casa) |
+| --- | --- | --- |
+| **Cabo WAN (entre prédios)** | `10.0.0.0/30` | `r-matriz` = `.1` · `r-filial` = `.2` |
+| **LAN Serviços (Matriz)** | `172.20.10.0/24` | Roteador `.1` · `dns` `.10` · `web` (Nginx) `.20` · `api` `.21` · `db` (PostgreSQL) `.22` |
+| **LAN Gerência (Matriz)** | `172.20.99.0/24` | Roteador `.1` · Zabbix `.10`–`.12` · Prometheus `.20` · Alertmanager `.21` · Grafana `.22` · Loki `.23` |
+| **LAN Filial** | `172.20.20.0/24` | Roteador `.1` · `cliente-carga` `.20` · `sonda` (Blackbox) `.30` |
+| **Porta dos fundos (`eth0`)** | `172.30.0.0/24` | Todos os contêineres têm — **só para administração/internet, NUNCA para tráfego da loja ou coleta!** |
 
-> Os comandos práticos para validar tudo isso passo a passo estão em [`docs/Guia_Execucao_e_Testes.md`](../Guia_Execucao_e_Testes.md).
+---
+
+## 3. A Regra de Ouro (`eth0` vs. `eth1`) — O erro que mais reprova
+
+### 1) Por que isso existe?
+Quando o Containerlab liga qualquer contêiner, o Docker coloca automaticamente uma placa **`eth0`** (`172.30.0.0/24`) ligando **todos** os contêineres direto entre si por fora da topologia — como uma "porta dos fundos" ou um corredor secreto onde não existem roteadores.
+
+### 2) O que acontece se o monitoramento ou a loja usarem a `eth0`?
+Imagine que o professor quer testar a **Falha 1**: ele corta o cabo WAN entre Filial e Matriz.
+- Se os pedidos da Filial e as medições passarem pela **`eth1`** (o caminho real), eles passam por `r-filial` → cabo WAN → `r-matriz`. Quando o cabo WAN cai, **tudo para e os alarmes disparam** (correto!).
+- Se alguém errar as rotas e deixar o tráfego escapar pela **`eth0`**, os pacotes dão a volta por fora do cabo WAN — e **nenhum alarme dispara**! O cenário de falha inteiro perde o sentido.
+
+### 3) Onde isso está no projeto?
+- Em [`integrante_A/infra/topology.yml`](../../integrante_A/infra/topology.yml): cada servidor recebe rotas explícitas mandando `172.20.0.0/16` e `10.0.0.0/30` pela `eth1` rumo ao gateway `.1`.
+- Em [`integrante_B/observability/prometheus/prometheus.clab.yml`](../../integrante_B/observability/prometheus/prometheus.clab.yml): todos os alvos usam IPs `172.20.x.x` e `10.0.0.x` (existe até um teste automático no `pytest` que falha se alguém escrever `172.30.0.` lá dentro!).
+
+### 4) Como você prova isso na prática (10 segundos)
+No Containerlab, você derruba a WAN (`ip link set eth1 down` no `r-filial`) e tenta pingar `172.20.10.21` a partir da Filial: **tem que dar 100% de perda**. Se responder, significa que vazou pela `eth0`!
+
+---
+
+## 4. Por que cuidamos de WSL2 e Linux ao mesmo tempo?
+
+Você e a Integrante A usam **Windows + WSL2** (um Linux Ubuntu real rodando dentro do Windows), e mantemos compatibilidade com Linux nativo/VM Ubuntu caso apresentem em outro computador:
+- **Quebra de linha `LF` (`.gitattributes`):** scripts Linux quebram com erro invisível se forem salvos com `\r\n` do Windows. O `.gitattributes` na raiz impede isso automaticamente.
+- **Rodar em `~/Projeto_Final` (não em `/mnt/c/...`):** no WSL2, `/mnt/c/` passa por uma tradução lenta do Windows que atrapalha bancos de dados.
+- **Portas sem briga (`8080` vs. `8088`/`8085`):** o Zabbix usa a porta `8080` no navegador; por isso colocamos a loja em `8088` e o `cAdvisor` em `8085` nos testes locais.
+- **Falha 3 (`tc netem`):** já testamos no WSL2 que seu kernel (`6.6.87.2`) aceita `tc qdisc ... netem` normalmente!

@@ -1,45 +1,50 @@
-# Trilha de Estudos — Café Planalto (Monitoramento e Observabilidade)
+# Trilha de Estudos — Café Planalto (Do Zero à Prática)
 
-Esta pasta organiza o conteúdo **teórico e de arguição** em módulos curtos para quem está começando do zero.
+Estes guias foram feitos para quem está **começando do zero em redes e programação**. Em vez de jogar termos soltos ou listas gigantes de comandos, **cada assunto segue sempre a mesma lógica em 4 passos**:
 
-> **Quer apenas os comandos passo a passo para configurar, subir e testar tudo?** Abra o documento separado: [**Guia de Execução e Testes (`docs/Guia_Execucao_e_Testes.md`)**](../Guia_Execucao_e_Testes.md).
+1. **Por que isso existe?** — o problema real do mundo físico/empresa que aquela peça resolve (com analogia simples).
+2. **Como funciona?** — o caminho passo a passo sem pular etapas.
+3. **Onde está no nosso projeto?** — o arquivo exato e a linha onde aquilo mora no código.
+4. **Valide em 10 segundos + "E se eu tirasse isso?"** — um teste rápido para você ver funcionando com os próprios olhos e entender o que quebra se aquilo falhar.
+
+> **Quer subir tudo do começo ao fim no WSL2?** Use o manual operacional separado: [`docs/Guia_Execucao_e_Testes.md`](../Guia_Execucao_e_Testes.md).
 >
-> **Regra de ouro da avaliação:** na apresentação, o professor faz perguntas individuais sobre **a parte que você NÃO apresentou**. Por isso, estude tanto a trilha do **Integrante B** quanto a do **Integrante A**.
+> **Regra da avaliação:** na apresentação, o professor faz perguntas individuais sobre **a parte que você NÃO apresentou**. Estude as duas trilhas!
 
 ---
 
 ## Ordem Recomendada de Leitura
 
-### Base Comum (para os dois integrantes)
-1. [**00 — Visão Geral, Contratos e WSL2 / Linux**](00_Visao_Geral_e_Contratos.md)
-   - A história da Café Planalto, plano completo de IPs e portas, `eth0` vs. `eth1`, divisão de pastas e cuidados no WSL2 (usado por ambos) mantendo compatibilidade com Linux nativo / VM Ubuntu.
+### Base Comum (para entender o mapa todo)
+1. [**00 — Visão Geral, Contratos e Regra de Ouro**](00_Visao_Geral_e_Contratos.md)
+   - O mapa da Café Planalto, por que temos duas ferramentas de monitoramento e a lógica dos IPs + `eth0` vs. `eth1`.
 
-### Trilha do Integrante A — Infraestrutura, Rede e Zabbix
+### Trilha do Integrante A — A Estrada por Onde os Dados Passam
 2. [**A1 — Redes, Topologia Containerlab e Roteamento Estático**](integrante_A/01_Redes_Topologia_e_Roteamento.md)
-   - Interfaces (`eth0`, `eth1`, `eth2`), MAC vs. IP, CIDR (`/30`, `/24`, `/16`), gateway, bridge (Camada 2) vs. roteador (Camada 3), `ip_forward=1`, *Longest Prefix Match*, `ping`/`TTL`/`traceroute` e análise do `topology.yml`.
-3. [**A2 — DNS (CoreDNS), SNMP v2c e Base do Zabbix**](integrante_A/02_DNS_SNMP_e_Zabbix_Base.md)
-   - Resolução de nomes (`cafeplanalto.lab`, `loja.cafeplanalto.lab`), `snmpd` na Matriz e Filial, OIDs/communities, arquitetura dos contêineres do Zabbix 8.0 LTS e o que ainda falta a Integrante A concluir.
+   - Acompanhe a viagem de um pacote saindo da Filial até a Matriz: placas `eth0`/`eth1`, MAC vs. IP, CIDR (`/30`, `/24`, `/16`), gateway, switch vs. roteador, `ip_forward=1`, rotas estáticas e `traceroute`.
+3. [**A2 — DNS (CoreDNS), SNMP v2c e Zabbix**](integrante_A/02_DNS_SNMP_e_Zabbix_Base.md)
+   - Como nomes viram IPs (`loja.cafeplanalto.lab`), como o Zabbix lê os roteadores pela WAN usando SNMP + descoberta automática (LLD) e o papel de cada contêiner do Zabbix.
 
-### Trilha do Integrante B — Aplicação, Carga e Observabilidade Moderna
-4. [**B1 — Aplicação em 3 Camadas (Nginx + FastAPI + PostgreSQL)**](integrante_B/01_Aplicacao_3_Camadas_Nginx_API_DB.md)
-   - HTTP/REST/JSON, Docker (`Dockerfile`, `iproute2`), Nginx como proxy reverso + `stub_status`, API FastAPI, métricas Prometheus (Counter, Histogram, p95, Gauge, cardinalidade), logs JSON, `/admin/caos`, `/health` e resiliência com PostgreSQL.
+### Trilha do Integrante B — A Loja e os Sensores Modernos
+4. [**B1 — Aplicação em 3 Camadas: Nginx, API FastAPI e PostgreSQL**](integrante_B/01_Aplicacao_3_Camadas_Nginx_API_DB.md)
+   - Acompanhe **1 clique no botão "Fazer Pedido"** na loja: HTTP, JSON, Docker (`iproute2`), Nginx (proxy reverso + `stub_status`), API FastAPI, PostgreSQL (pool resiliente), métricas Prometheus, cardinalidade, logs JSON e `/admin/caos`.
 5. [**B2 — Gerador de Carga Contínua (`k6`)**](integrante_B/02_Gerador_de_Carga_k6.md)
-   - Por que manter tráfego contínuo (5–20 req/s) e como funcionam `Dockerfile` (multi-stage), `script.js` (`constant-arrival-rate`) e `entrypoint.sh` do nó `cliente-carga`.
-6. [**B3 — Exporters, Blackbox, Prometheus e Alertmanager (E-mail)**](integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md)
-   - Exporters (`node`, `cAdvisor`, `postgres`, `nginx`), sonda Blackbox (HTTP, DNS, ICMP), PromQL do zero, regras `alerts.yml` (sintoma vs. causa) e funcionamento do Alertmanager SMTP.
+   - Por que um robô precisa comprar café sem parar pela Filial e como ele funciona dentro do `loadgen/`.
+6. [**B3 — Exporters, Sonda Blackbox, Prometheus e Alertmanager (E-mail)**](integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md)
+   - Como os "tradutores" (exporters) expõem números, como a sonda da Filial testa a loja "por fora", como o Prometheus lê tudo (`Pull` + PromQL) e como o Alertmanager envia `[FIRING]` e `[RESOLVED]` para o seu celular.
 
-*(Os módulos `B4` e `B5` — Logs no Loki + Dashboards Grafana USE/RED/Negócio/SLOs — e `06 — Ensaios de Caos e Arguição` serão adicionados nas próximas fases.)*
+*(Os módulos `B4` e `B5` — Logs no Loki + Dashboards Grafana e SLOs — entram na Fase 3.)*
 
 ---
 
-## Mapa de Requisitos do Barema (100 pontos)
+## Mapa de Pontuação do Trabalho (100 pontos)
 
-| Bloco | Pontos | Responsável | Status atual no repositório |
+| Bloco | Pontos | Dono | Onde mora no repositório |
 | --- | --- | --- | --- |
-| **I. Infraestrutura (I1–I4)** | 15 pts | Integrante A (com contratos comuns) | Base em `integrante_A/infra/` e `dns/` (integração final na Fase 4) |
-| **A. Aplicação (A1–A3)** | 10 pts | **Integrante B** | Pronto em `integrante_B/{web,api,db,loadgen}/` (validado em Compose local) |
-| **Z. Zabbix (Z1–Z8)** | 25 pts | Integrante A | Stack base + SNMP em `integrante_A/zabbix/` e `snmp/` |
-| **P. Prometheus + Grafana (P1–P4)** | 20 pts | **Integrante B** | **P1, P2 e P3 prontos** em `integrante_B/observability/` (P4 na Fase 3) |
-| **O. Observabilidade / Loki / SLOs (O1–O3)** | 10 pts | **Integrante B** | *Fase 3 em `integrante_B/`* |
-| **Falhas ao vivo (2 sorteadas)** | 12 pts | **Ambos (juntos)** | Ensaios locais B (Fases 2–3) + ensaios integrados (Fase 5) |
-| **Relatório comparativo e README** | 8 pts | **Ambos (tópicos invertidos)** | Base em andamento + consolidação final |
+| **I. Infraestrutura (I1–I4)** | 15 pts | Integrante A | `integrante_A/infra/`, `integrante_A/dns/` |
+| **A. Aplicação (A1–A3)** | 10 pts | **Integrante B** | `integrante_B/{web,api,db,loadgen}/` |
+| **Z. Zabbix (Z1–Z8)** | 25 pts | Integrante A | `integrante_A/zabbix/`, `integrante_A/snmp/` |
+| **P. Prometheus + Grafana (P1–P4)** | 20 pts | **Integrante B** | `integrante_B/observability/` *(P4 na Fase 3)* |
+| **O. Observabilidade / Loki / SLOs (O1–O3)** | 10 pts | **Integrante B** | *Fase 3* |
+| **Falhas ao vivo (2 sorteadas)** | 12 pts | **Ambos** | Ensaios locais agora; integrados na Fase 5 |
+| **Relatório comparativo e README** | 8 pts | **Ambos (invertido)** | Consolidação final |
