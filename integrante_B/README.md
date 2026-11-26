@@ -63,4 +63,4 @@ docker exec cafeplanalto-dev-alertmanager amtool check-config /tmp/alertmanager.
 pytest -v api/tests observability/tests
 ```
 
-Consulte o roteiro passo a passo de testes manuais e checklist de apresentação (Barema P1, P2 e P3) em [`../docs/estudo/integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md`](../docs/estudo/integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md).
+Consulte o roteiro completo passo a passo (configuração do Gmail, testes manuais e checklist de apresentação) em [`../docs/Guia_Execucao_e_Testes.md`](../docs/Guia_Execucao_e_Testes.md) e os guias teóricos em [`../docs/estudo/README.md`](../docs/estudo/README.md).

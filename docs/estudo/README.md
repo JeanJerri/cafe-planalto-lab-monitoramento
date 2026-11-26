@@ -1,7 +1,9 @@
 # Trilha de Estudos — Café Planalto (Monitoramento e Observabilidade)
 
-Esta pasta organiza o conteúdo do trabalho prático em **módulos curtos e progressivos para quem está começando do zero**. Cada guia explica **o que é**, **por que existe**, **como funciona nos arquivos reais do repositório** e **como responder na arguição individual cruzada**.
+Esta pasta organiza o conteúdo **teórico e de arguição** em módulos curtos para quem está começando do zero.
 
+> **Quer apenas os comandos passo a passo para configurar, subir e testar tudo?** Abra o documento separado: [**Guia de Execução e Testes (`docs/Guia_Execucao_e_Testes.md`)**](../Guia_Execucao_e_Testes.md).
+>
 > **Regra de ouro da avaliação:** na apresentação, o professor faz perguntas individuais sobre **a parte que você NÃO apresentou**. Por isso, estude tanto a trilha do **Integrante B** quanto a do **Integrante A**.
 
 ---
@@ -21,10 +23,10 @@ Esta pasta organiza o conteúdo do trabalho prático em **módulos curtos e prog
 ### Trilha do Integrante B — Aplicação, Carga e Observabilidade Moderna
 4. [**B1 — Aplicação em 3 Camadas (Nginx + FastAPI + PostgreSQL)**](integrante_B/01_Aplicacao_3_Camadas_Nginx_API_DB.md)
    - HTTP/REST/JSON, Docker (`Dockerfile`, `iproute2`), Nginx como proxy reverso + `stub_status`, API FastAPI, métricas Prometheus (Counter, Histogram, p95, Gauge, cardinalidade), logs JSON, `/admin/caos`, `/health` e resiliência com PostgreSQL.
-5. [**B2 — Gerador de Carga Contínua (`k6`) e Testes Locais**](integrante_B/02_Gerador_de_Carga_e_Testes_Locais.md)
-   - Como funciona o `k6` simulando clientes comprando café continuamente (`5–20 req/s`) e passo a passo prático para subir tudo com `docker compose`, testar no navegador/`curl` e simular as falhas 4, 5 e 6 localmente no WSL2.
+5. [**B2 — Gerador de Carga Contínua (`k6`)**](integrante_B/02_Gerador_de_Carga_k6.md)
+   - Por que manter tráfego contínuo (5–20 req/s) e como funcionam `Dockerfile` (multi-stage), `script.js` (`constant-arrival-rate`) e `entrypoint.sh` do nó `cliente-carga`.
 6. [**B3 — Exporters, Blackbox, Prometheus e Alertmanager (E-mail)**](integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md)
-   - Exporters (`node`, `cAdvisor`, `postgres`, `nginx`), sonda Blackbox (HTTP, DNS, ICMP), PromQL do zero, regras `alerts.yml` (sintoma vs. causa), Alertmanager com Gmail + Senha de App e **roteiro completo de testes manuais visando os itens P1, P2 e P3 da apresentação**.
+   - Exporters (`node`, `cAdvisor`, `postgres`, `nginx`), sonda Blackbox (HTTP, DNS, ICMP), PromQL do zero, regras `alerts.yml` (sintoma vs. causa) e funcionamento do Alertmanager SMTP.
 
 *(Os módulos `B4` e `B5` — Logs no Loki + Dashboards Grafana USE/RED/Negócio/SLOs — e `06 — Ensaios de Caos e Arguição` serão adicionados nas próximas fases.)*
 

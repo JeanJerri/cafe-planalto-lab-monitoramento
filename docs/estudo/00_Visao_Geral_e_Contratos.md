@@ -60,19 +60,11 @@ Como tanto a Integrante A quanto o Integrante B desenvolvem no **Windows + WSL2*
    - O disco do Windows aparece no Ubuntu WSL2 em `/mnt/c/...`, que passa por uma ponte de sistema de arquivos mais lenta e com permissões diferentes para bancos de dados (PostgreSQL/Prometheus/Loki).
    - **Boa prática:** para rodar o laboratório no WSL2, clone ou copie o projeto dentro da sua pasta Linux nativa (`~/Projeto_Final`) e use **volumes nomeados** do Docker para persistência.
 3. **Sincronização de relógio no WSL2:**
-   - Métricas e logs dependem do horário exato para aparecerem alinhados no Grafana. Às vezes, quando o notebook hiberna no Windows, o relógio do WSL2 atrasa.
-   - Se notar horários estranhos nos logs, rode no terminal Ubuntu WSL2:
-     ```bash
-     sudo hwclock -s
-     ```
+   - Métricas e logs dependem do horário exato para aparecerem alinhados. Se o notebook hibernou no Windows, o relógio do WSL2 pode atrasar e deve ser sincronizado antes dos testes.
 4. **Conflito de portas locais (`8080`):**
    - O `zabbix-web` da Integrante A usa a porta local `8080`. Por isso, no `docker-compose.yml` de testes do Integrante B usamos **`8088`** para a loja (`web`), **`8089`** para o `stub_status` do Nginx e **`8085`** para o `cAdvisor`.
 5. **Particularidades do kernel WSL2 (`cAdvisor` e `tc netem` na Falha 3):**
-   - No WSL2, o `cAdvisor` precisa de flags específicas para não tentar ler `/dev/disk` inexistente (já configurado no `docker-compose.yml`).
-   - Na **Falha 3** (`tc qdisc add dev eth1 root netem delay 300ms loss 5%`), o kernel padrão de algumas versões do WSL2 não vem com o módulo `sch_netem` habilitado, enquanto no Linux nativo/VM Ubuntu funciona direto. **Teste hoje no WSL2 de vocês antes de falar com o professor:**
-     ```bash
-     sudo docker exec clab-cafeplanalto-r-filial tc qdisc add dev eth1 root netem delay 300ms loss 5%
-     # Se funcionar sem erro, desfaça em seguida com:
-     sudo docker exec clab-cafeplanalto-r-filial tc qdisc del dev eth1 root
-     ```
-     *(Se retornar `RTNETLINK answers: No such file or directory` ou `Operation not supported`, já levem essa dúvida ao professor hoje!)*
+   - No WSL2, o `cAdvisor` usa flags específicas para não depender de `/dev/disk` inexistente.
+   - Na **Falha 3** (`tc qdisc ... netem`), o kernel padrão de algumas versões do WSL2 pode não trazer o módulo `sch_netem` habilitado, enquanto no Linux nativo/VM Ubuntu funciona direto.
+
+> Os comandos práticos para validar tudo isso passo a passo estão em [`docs/Guia_Execucao_e_Testes.md`](../Guia_Execucao_e_Testes.md).

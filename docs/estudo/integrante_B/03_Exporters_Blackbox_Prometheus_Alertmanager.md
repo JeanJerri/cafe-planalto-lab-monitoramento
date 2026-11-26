@@ -1,6 +1,8 @@
 # B3 — Exporters, Blackbox, Prometheus e Alertmanager (Integrante B)
 
-Este módulo explica do zero como funcionam os **Exporters**, a **Sonda Blackbox**, o **Prometheus (PromQL)** e o **Alertmanager com e-mail**, além de trazer um **roteiro completo de testes manuais** espelhando o que você vai demonstrar na apresentação (**Barema P1, P2 e P3**).
+Este módulo explica do zero a teoria por trás dos **Exporters**, da **Sonda Blackbox**, do **Prometheus (PromQL)** e do **Alertmanager por e-mail**, preparando você para a arguição.
+
+> **Quer configurar seu Gmail, subir tudo e rodar os testes manuais P1, P2 e P3?** Siga o roteiro prático em [`docs/Guia_Execucao_e_Testes.md`](../../Guia_Execucao_e_Testes.md).
 
 ---
 
@@ -77,132 +79,14 @@ Em [`alertmanager.yml.tmpl`](../../../integrante_B/observability/alertmanager/al
 - **Inibição (`inhibit_rules`):** se um alerta `critical` já está ativo em um serviço, suprime o `warning` do mesmo serviço; e se a sonda na Filial sumir (`EnlaceWANOuSondaIndisponivel`), suprime os alertas secundários das sondas (`blackbox_http`, `blackbox_dns`, `blackbox_icmp`) para não gerar cascata.
 - **Auto-resolução (`send_resolved: true`):** quando você desliga a falha e o Prometheus volta a ver tudo normal, o Alertmanager envia automaticamente um e-mail com **`[RESOLVED]`** (Requisito P3!).
 
-### 4.3 Como configurar seu Gmail no `.env` (sem vazar senha no Git)
-O arquivo `integrante_B/.env` é **ignorado pelo `.gitignore`**, então sua senha fica só no seu computador.
-1. Na sua conta Google/Gmail, ative a **Verificação em duas etapas**.
-2. Acesse **Gerenciar sua Conta Google → Segurança → Senhas de app**, crie uma senha chamada `CafePlanalto` e copie os **16 caracteres** (sem espaços).
-3. No terminal (dentro de `integrante_B/`), crie o `.env` a partir do modelo:
-   ```bash
-   cp .env.example .env
-   ```
-4. Edite o `.env` preenchendo estas 6 linhas:
-   ```env
-   SMTP_SMARTHOST=smtp.gmail.com:587
-   SMTP_FROM=seu.email@gmail.com
-   SMTP_AUTH_USERNAME=seu.email@gmail.com
-   SMTP_AUTH_PASSWORD=abcdabcdabcdabcd
-   SMTP_REQUIRE_TLS=true
-   ALERT_EMAIL_TO=seu.email@gmail.com
-   ```
-   *(Como funciona por dentro? O [`entrypoint.sh`](../../../integrante_B/observability/alertmanager/entrypoint.sh) usa `envsubst` listando só essas 6 variáveis para gerar `/tmp/alertmanager.yml` ao iniciar o contêiner, deixando os templates `{{ ... }}` intactos.)*
+### 4.3 Segurança de credenciais (`entrypoint.sh` + `.env`)
+Senhas SMTP nunca vão para o Git. O arquivo `integrante_B/.env` fica listado no `.gitignore` e o [`entrypoint.sh`](../../../integrante_B/observability/alertmanager/entrypoint.sh) usa `envsubst` listando explicitamente apenas as 6 variáveis SMTP para gerar `/tmp/alertmanager.yml` ao iniciar o contêiner, mantendo os templates Go `{{ ... }}` intactos.
+
+*(O passo a passo para criar a Senha de App no Gmail e rodar os ensaios manuais P1, P2 e P3 está em [`docs/Guia_Execucao_e_Testes.md`](../../Guia_Execucao_e_Testes.md).)*
 
 ---
 
-## 5. Roteiro Completo de Testes Manuais (Validação Local + Preparação da Apresentação)
-
-Execute na ordem abaixo no seu terminal **Ubuntu (WSL2)** dentro de `~/Projeto_Final/integrante_B` (ou na pasta onde clonou o repositório).
-
-### Passo 5.1 — Subir toda a stack e validar saúde dos contêineres
-```bash
-cd integrante_B
-docker compose up -d --build
-docker compose ps
-```
-**O que verificar:** todos os **12 contêineres** devem aparecer como `Up` (`db` como `healthy`).
-
-### Passo 5.2 — Validar sintaxe de Prometheus e Alertmanager via CLI
-```bash
-docker exec cafeplanalto-dev-prometheus promtool check config /etc/prometheus/prometheus.yml
-docker exec cafeplanalto-dev-prometheus promtool check rules /etc/prometheus/rules/alerts.yml
-docker exec cafeplanalto-dev-alertmanager amtool check-config /tmp/alertmanager.yml
-```
-**O que verificar:** todos devem responder **`SUCCESS`** (sem erros).
-
-### Passo 5.3 — Checklist do Barema P1: Alvos de coleta (5 pontos na apresentação)
-1. Abra no navegador do Windows: **`http://localhost:9090/targets`**.
-2. **O que deve aparecer:** os **10 grupos** (`api`, `blackbox_dns`, `blackbox_exporter`, `blackbox_http`, `blackbox_icmp`, `cadvisor`, `nginx_exporter`, `node_exporter`, `postgres_exporter`, `prometheus`) com todos os alvos em estado verde **`UP`**.
-3. **Se algum alvo estiver `DOWN`:** passe o mouse na coluna `Error` — geralmente o serviço ainda está terminando de subir (aguarde 15s e clique em *Refresh*).
-
-### Passo 5.4 — Checklist do Barema P2: Sondas Blackbox HTTP, DNS e ICMP (4 pontos)
-1. Abra **`http://localhost:9090/graph`**, mude para a aba **Table** (ou **Graph**) e execute uma consulta por vez:
-   ```promql
-   probe_success
-   ```
-   - **Esperado:** todas as séries (`blackbox_http` em `/produtos` e `/health`, `blackbox_dns` em `dns:53`, e `blackbox_icmp` nos 4 hosts) com valor **`1`**.
-2. Execute também:
-   ```promql
-   probe_duration_seconds{job="blackbox_http"}
-   ```
-   - **Esperado:** tempos baixos (alguns milissegundos, ex.: `0.003` a `0.03`).
-3. Teste opcional direto no Blackbox Exporter (`http://localhost:9115`):
-   ```bash
-   curl -s "http://localhost:9115/probe?target=http://web/produtos&module=http_2xx" | grep probe_success
-   curl -s "http://localhost:9115/probe?target=dns:53&module=dns_cafeplanalto" | grep probe_success
-   ```
-   - **Esperado:** `probe_success 1`.
-
-### Passo 5.5 — Checklist do Barema P3: Alertas, Notificação Real por E-mail e Auto-resolução (5 pontos)
-> Para testar o envio real de e-mail, certifique-se de ter preenchido o `.env` no Passo 4.3 antes de subir (`docker compose up -d --force-recreate alertmanager`).
-
-Abra duas abas no navegador: **`http://localhost:9090/alerts`** (Prometheus) e **`http://localhost:9093`** (Alertmanager).
-
-#### Ensaio A — Falha 6: Erros 500 na API (`/admin/caos`)
-```bash
-# 1. Injeta 20% de erro HTTP 500 na loja
-curl -s -X POST http://localhost:8088/admin/caos \
-  -H "Content-Type: application/json" \
-  -d '{"latencia_ms": 0, "taxa_erro": 0.2}'
-```
-* **O que observar:**
-  1. Em `http://localhost:9090/alerts`, após ~15–30s, **`TaxaDeErros5xxAlta`** muda de `Inactive` → `Pending` → **`Firing` (vermelho)**.
-  2. Em `http://localhost:9093`, o alerta aparece agrupado.
-  3. Após ~15–30s (`group_wait`), **um e-mail `[Cafe Planalto][FIRING] TaxaDeErros5xxAlta (critical)` chega no seu celular!**
-* **Recuperação automática:**
-```bash
-# 2. Desliga o caos
-curl -s -X POST "http://localhost:8088/admin/caos?latencia_ms=0&taxa_erro=0"
-```
-  - Aguarde ~1–2 minutos (janela `[1m]` do `rate()` + `resolve_timeout`): o alerta some de `Firing` e você recebe o e-mail **`[Cafe Planalto][RESOLVED] TaxaDeErros5xxAlta`**.
-
-#### Ensaio B — Falha 4: Banco de dados parado (`docker stop`)
-```bash
-docker stop cafeplanalto-dev-db
-```
-* **O que observar:** `BancoPostgreSQLFora` (`pg_up == 0`) e `LojaIndisponivelHTTP` (`/health` retorna `503`) disparam em `Firing` e chegam por e-mail.
-```bash
-docker start cafeplanalto-dev-db
-```
-* **Recuperação:** em poucos segundos `pg_up` volta a `1`, `/health` volta a `200` sem reiniciar a API, e os alertas se resolvem sozinhos.
-
-#### Ensaio C — Falha 5: API lenta (`latencia_ms=800`)
-```bash
-curl -s -X POST http://localhost:8088/admin/caos \
-  -H "Content-Type: application/json" \
-  -d '{"latencia_ms": 800, "taxa_erro": 0.0}'
-```
-* **O que observar:** `LatenciaP95AcimaDoSLO` e `LatenciaAltaSondaHTTP` passam de `0.3s` e entram em `Firing`. Depois desligue com:
-```bash
-curl -s -X POST "http://localhost:8088/admin/caos?latencia_ms=0&taxa_erro=0"
-```
-
-#### Ensaio D — Falha 7: DNS interno parado (`docker stop`)
-```bash
-docker stop cafeplanalto-dev-dns
-```
-* **O que observar:** em `/targets` ou `/graph`, `probe_success{job="blackbox_dns"}` cai para **`0`** e dispara **`DNSInternoFalhando`**. Depois religue:
-```bash
-docker start cafeplanalto-dev-dns
-```
-
-### Passo 5.6 — Conferir logs do Alertmanager (caso o e-mail não chegue)
-```bash
-docker logs --tail 25 cafeplanalto-dev-alertmanager
-```
-Se aparecer erro de autenticação SMTP, confira se não há espaços na Senha de App de 16 dígitos do Gmail no `.env` e reinicie apenas o Alertmanager: `docker compose up -d --force-recreate alertmanager`.
-
----
-
-## 6. Simulado de Arguição (Perguntas e Respostas da Fase 2)
+## 5. Simulado de Arguição (Perguntas e Respostas da Fase 2)
 
 1. **Qual a diferença entre um Exporter no Prometheus e o Agente do Zabbix?**
    > O Agente do Zabbix é um único serviço instalado no servidor que coleta múltiplas métricas (SO, banco, web). No Prometheus, cada componente expõe suas métricas via HTTP em `/metrics` (ou através de um exporter dedicado como `postgres_exporter`, `nginx-exporter` e `node_exporter`), e o Prometheus busca por *Pull*.
