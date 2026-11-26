@@ -1,6 +1,6 @@
 # 00 — Visão Geral, Contratos do Ambiente e Linux × WSL2
 
-Este capítulo apresenta o cenário completo da empresa **Café Planalto**, os endereços combinados entre a dupla e os cuidados para trabalhar em conjunto quando uma pessoa usa **Linux nativo (Integrante A)** e a outra usa **Windows + WSL2 (Integrante B)**.
+Este capítulo apresenta o cenário completo da empresa **Café Planalto**, os endereços combinados entre a dupla e os cuidados para rodar o laboratório no **Windows + WSL2 (usado por ambos os integrantes)** mantendo total compatibilidade com **Linux nativo / VM Ubuntu** (caso apresentem em uma VM ou computador do laboratório do campus).
 
 ---
 
@@ -49,9 +49,9 @@ Projeto_Final/
 
 ---
 
-## 4. Cuidados Essenciais: Linux Nativo (Integrante A) × WSL2 (Integrante B)
+## 4. Cuidados Essenciais: WSL2 (Ambos) e Compatibilidade com Linux Nativo
 
-Como a Integrante A desenvolve direto no Linux e você usa Windows + **WSL2** (um kernel Linux real rodando dentro do Windows), alguns detalhes práticos evitam bugs invisíveis:
+Como tanto a Integrante A quanto o Integrante B desenvolvem no **Windows + WSL2** (um kernel Linux real rodando dentro do Windows), mantemos o projeto 100% compatível também com **Linux nativo / VM Ubuntu** — isso não atrapalha em nada e garante que tudo rode no laboratório do campus se necessário. Observe estes 5 cuidados práticos:
 
 1. **Fim de linha (`LF` vs `CRLF`):**
    - Windows costuma salvar textos com `\r\n` (`CRLF`), enquanto Linux e shells `#!/bin/sh` exigem `\n` (`LF`). Um script `.sh` com `CRLF` falha com `not found` ao rodar dentro de um contêiner Alpine.
@@ -66,7 +66,13 @@ Como a Integrante A desenvolve direto no Linux e você usa Windows + **WSL2** (u
      sudo hwclock -s
      ```
 4. **Conflito de portas locais (`8080`):**
-   - O `zabbix-web` da Integrante A usa a porta local `8080`. Por isso, no `docker-compose.yml` de testes do Integrante B usamos **`8088`** para a loja (`web`) e **`8089`** para o `stub_status` do Nginx.
-5. **Particularidades do kernel WSL2 (`cAdvisor` e `tc netem`):**
-   - No WSL2, o `cAdvisor` precisa de flags específicas para não tentar ler `/dev/disk` inexistente (trataremos isso na Fase 2).
-   - Na Falha 3 (`tc qdisc add dev eth1 root netem delay 300ms loss 5%`), o kernel padrão de algumas versões do WSL2 não vem com o módulo `sch_netem` compilado, enquanto no Linux nativo da Integrante A funciona normalmente. Testaremos isso antes da apresentação!
+   - O `zabbix-web` da Integrante A usa a porta local `8080`. Por isso, no `docker-compose.yml` de testes do Integrante B usamos **`8088`** para a loja (`web`), **`8089`** para o `stub_status` do Nginx e **`8085`** para o `cAdvisor`.
+5. **Particularidades do kernel WSL2 (`cAdvisor` e `tc netem` na Falha 3):**
+   - No WSL2, o `cAdvisor` precisa de flags específicas para não tentar ler `/dev/disk` inexistente (já configurado no `docker-compose.yml`).
+   - Na **Falha 3** (`tc qdisc add dev eth1 root netem delay 300ms loss 5%`), o kernel padrão de algumas versões do WSL2 não vem com o módulo `sch_netem` habilitado, enquanto no Linux nativo/VM Ubuntu funciona direto. **Teste hoje no WSL2 de vocês antes de falar com o professor:**
+     ```bash
+     sudo docker exec clab-cafeplanalto-r-filial tc qdisc add dev eth1 root netem delay 300ms loss 5%
+     # Se funcionar sem erro, desfaça em seguida com:
+     sudo docker exec clab-cafeplanalto-r-filial tc qdisc del dev eth1 root
+     ```
+     *(Se retornar `RTNETLINK answers: No such file or directory` ou `Operation not supported`, já levem essa dúvida ao professor hoje!)*

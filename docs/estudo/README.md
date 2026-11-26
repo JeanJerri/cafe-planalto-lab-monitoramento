@@ -9,8 +9,8 @@ Esta pasta organiza o conteúdo do trabalho prático em **módulos curtos e prog
 ## Ordem Recomendada de Leitura
 
 ### Base Comum (para os dois integrantes)
-1. [**00 — Visão Geral, Contratos e Linux vs. WSL2**](00_Visao_Geral_e_Contratos.md)
-   - A história da Café Planalto, plano completo de IPs e portas, `eth0` vs. `eth1`, divisão de pastas e cuidados entre Linux nativo (Integrante A) e WSL2 (Integrante B).
+1. [**00 — Visão Geral, Contratos e WSL2 / Linux**](00_Visao_Geral_e_Contratos.md)
+   - A história da Café Planalto, plano completo de IPs e portas, `eth0` vs. `eth1`, divisão de pastas e cuidados no WSL2 (usado por ambos) mantendo compatibilidade com Linux nativo / VM Ubuntu.
 
 ### Trilha do Integrante A — Infraestrutura, Rede e Zabbix
 2. [**A1 — Redes, Topologia Containerlab e Roteamento Estático**](integrante_A/01_Redes_Topologia_e_Roteamento.md)
