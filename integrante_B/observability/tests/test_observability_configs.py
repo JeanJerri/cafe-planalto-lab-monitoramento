@@ -126,3 +126,15 @@ def test_alertmanager_email_agrupamento_inhibit_e_env_example():
         "CADVISOR_HOST_PORT=",
     ):
         assert var in env_example, f"Variável {var} ausente no .env.example"
+
+
+def test_dockerfiles_sem_crlf_e_sem_cmd_multilinha_invalido():
+    dockerfiles = list(INTEGRANTE_B_DIR.rglob("Dockerfile*"))
+    assert dockerfiles
+    for df in dockerfiles:
+        raw = df.read_bytes()
+        assert b"\r" not in raw, f"Encontrado CR (CRLF) em {df}"
+        text = raw.decode("utf-8")
+        assert not re.search(r"(?m)^(CMD|ENTRYPOINT)\s+\[\s*\n", text), (
+            f"CMD/ENTRYPOINT multilinha sem barra invertida em {df}"
+        )
