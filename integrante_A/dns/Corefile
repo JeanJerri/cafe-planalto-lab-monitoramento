@@ -1,12 +1,36 @@
-cafeplanalto.test:53 {
+cafeplanalto.lab:53 {
     errors
     log
 
     hosts {
-        172.20.10.21 api.cafeplanalto.test
-        172.20.10.53 dns.cafeplanalto.test
-        172.20.20.20 cliente.cafeplanalto.test
-        172.20.99.100 gerencia.cafeplanalto.test
+        # Enlace WAN (10.0.0.0/30)
+        10.0.0.1 r-matriz-wan.cafeplanalto.lab
+        10.0.0.2 r-filial-wan.cafeplanalto.lab
+
+        # Roteadores (gateways)
+        172.20.10.1 r-matriz.cafeplanalto.lab
+        172.20.20.1 r-filial.cafeplanalto.lab
+
+        # LAN Servicos - Matriz (172.20.10.0/24)
+        172.20.10.10 dns.cafeplanalto.lab
+        172.20.10.20 loja.cafeplanalto.lab web.cafeplanalto.lab
+        172.20.10.21 api.cafeplanalto.lab
+        172.20.10.22 db.cafeplanalto.lab
+
+        # LAN Gerencia - Matriz (172.20.99.0/24)
+        172.20.99.10 zabbix-server.cafeplanalto.lab
+        172.20.99.11 zabbix-web.cafeplanalto.lab
+        172.20.99.12 zabbix-db.cafeplanalto.lab
+        172.20.99.20 prometheus.cafeplanalto.lab
+        172.20.99.21 alertmanager.cafeplanalto.lab
+        172.20.99.22 grafana.cafeplanalto.lab
+        172.20.99.23 loki.cafeplanalto.lab
+        172.20.99.100 host-gerencia.cafeplanalto.lab
+
+        # LAN Filial (172.20.20.0/24)
+        172.20.20.20 cliente-carga.cafeplanalto.lab
+        172.20.20.30 sonda.cafeplanalto.lab
+
         fallthrough
     }
 }

@@ -73,6 +73,7 @@ topology:
         - ip link set dev eth1 up
         - ip addr add 172.20.99.100/24 dev eth1
         - ip route add 172.20.0.0/16 via 172.20.99.1
+        - ip route add 10.0.0.0/30 via 172.20.99.1
 
     dns:
       kind: linux
@@ -81,8 +82,9 @@ topology:
         - ../dns/Corefile:/etc/coredns/Corefile:ro
       exec:
         - ip link set dev eth1 up
-        - ip addr add 172.20.10.53/24 dev eth1
+        - ip addr add 172.20.10.10/24 dev eth1
         - ip route add 172.20.0.0/16 via 172.20.10.1
+        - ip route add 10.0.0.0/30 via 172.20.10.1
 
   links:
 
