@@ -1,0 +1,3 @@
+zabbix/.env
+snmp/.community
+snmp/snmpd-*.conf

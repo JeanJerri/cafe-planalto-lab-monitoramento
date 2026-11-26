@@ -10,18 +10,25 @@ topology:
 
     r-matriz:
       kind: linux
-      image: cafeplanalto/netlab:1.0
+      image: cafeplanalto/netlab:1.1
+      binds:
+        - ../snmp/snmpd-matriz.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - sysctl -w net.ipv4.ip_forward=1
         - ip link set dev eth1 up
         - ip addr add 10.0.0.1/30 dev eth1
         - ip link set dev eth2 up
         - ip addr add 172.20.10.1/24 dev eth2
+        - ip link set dev eth3 up
+        - ip addr add 172.20.99.1/24 dev eth3
         - ip route add 172.20.20.0/24 via 10.0.0.2
+        - "/bin/sh -c 'snmpd -f -Lo -C -c /etc/snmp/snmpd.conf >/tmp/snmpd.log 2>&1 &'"
 
     r-filial:
       kind: linux
-      image: cafeplanalto/netlab:1.0
+      image: cafeplanalto/netlab:1.1
+      binds:
+        - ../snmp/snmpd-filial.conf:/etc/snmp/snmpd.conf:ro
       exec:
         - sysctl -w net.ipv4.ip_forward=1
         - ip link set dev eth1 up
@@ -29,11 +36,16 @@ topology:
         - ip link set dev eth2 up
         - ip addr add 172.20.20.1/24 dev eth2
         - ip route add 172.20.10.0/24 via 10.0.0.1
+        - ip route add 172.20.99.0/24 via 10.0.0.1
+        - "/bin/sh -c 'snmpd -f -Lo -C -c /etc/snmp/snmpd.conf >/tmp/snmpd.log 2>&1 &'"
 
     sw-servicos:
       kind: bridge
 
     sw-filial:
+      kind: bridge
+
+    sw-gerencia:
       kind: bridge
 
     api:
@@ -54,16 +66,42 @@ topology:
         - ip route add 172.20.0.0/16 via 172.20.20.1
         - ip route add 10.0.0.0/30 via 172.20.20.1
 
+    host-gerencia:
+      kind: linux
+      image: cafeplanalto/netlab:1.0
+      exec:
+        - ip link set dev eth1 up
+        - ip addr add 172.20.99.100/24 dev eth1
+        - ip route add 172.20.0.0/16 via 172.20.99.1
+
+    dns:
+      kind: linux
+      image: cafeplanalto/coredns:1.0
+      binds:
+        - ../dns/Corefile:/etc/coredns/Corefile:ro
+      exec:
+        - ip link set dev eth1 up
+        - ip addr add 172.20.10.53/24 dev eth1
+        - ip route add 172.20.0.0/16 via 172.20.10.1
+
   links:
 
     # WAN entre roteadores
     - endpoints: ["r-matriz:eth1", "r-filial:eth1"]
 
-    # LAN de Serviços
+    # LAN Serviços
     - endpoints: ["r-matriz:eth2", "sw-servicos:sv-rmat"]
     - endpoints: ["api:eth1", "sw-servicos:sv-api"]
 
     # LAN Filial
     - endpoints: ["r-filial:eth2", "sw-filial:sf-rfil"]
     - endpoints: ["cliente-carga:eth1", "sw-filial:sf-cli"]
+
+    # LAN Gerência
+    - endpoints: ["r-matriz:eth3", "sw-gerencia:sg-rmat"]
+    - endpoints: ["host-gerencia:eth1", "sw-gerencia:sg-host"]
+
+    # LAN Serviços — CoreDNS
+    - endpoints: ["dns:eth1", "sw-servicos:sv-dns"]
+
 

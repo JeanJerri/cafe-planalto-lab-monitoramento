@@ -1,0 +1,12 @@
+cafeplanalto.test:53 {
+    errors
+    log
+
+    hosts {
+        172.20.10.21 api.cafeplanalto.test
+        172.20.10.53 dns.cafeplanalto.test
+        172.20.20.20 cliente.cafeplanalto.test
+        172.20.99.100 gerencia.cafeplanalto.test
+        fallthrough
+    }
+}
