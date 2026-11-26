@@ -1,99 +1,70 @@
-# Loja Café Planalto — API (Semana 1 / Integrante B)
+# Café Planalto — Aplicação 3 Camadas e Carga (Integrante B)
 
-API em **Python + FastAPI** da loja virtual fictícia **Café Planalto**, desenvolvida com foco em observabilidade (métricas Prometheus + logs JSON estruturados) e engenharia de caos controlada para o trabalho prático de Monitoramento e Observabilidade.
+Stack da aplicação da loja virtual **Café Planalto** com foco em observabilidade, resiliência e geração de carga contínua para testes locais no **WSL2 / Docker** antes da integração final na topologia do Containerlab.
 
-## Estrutura do projeto
+## Estrutura de pastas
 
-- `src/config.py`: carregamento de variáveis de ambiente (`.env`).
-- `src/models.py`: modelos Pydantic de produtos, pedidos, saúde e caos.
-- `src/repository.py`: persistência em memória (Semana 1) e suporte pronto para PostgreSQL via `DATABASE_URL` (Semana 2).
-- `src/metrics.py`: métricas obrigatórias no formato Prometheus (`prometheus_client`).
-- `src/logging_json.py`: formatação de logs estruturados em JSON para `stdout`.
-- `src/chaos.py`: estado de injeção de caos (`latencia_ms` e `taxa_erro`) com rotas de observabilidade imunes.
-- `src/main.py`: aplicação FastAPI, middleware unificado e endpoints REST.
-- `Dockerfile`: imagem baseada em `python:3.12-slim` (multi-arch `amd64`/`arm64`) com `iproute2` e `curl` para compatibilidade com Containerlab.
+- [`api/`](api): API REST em Python + FastAPI (catálogo, pedidos, `/health`, `/metrics` Prometheus, `/admin/caos`, logs JSON e pool PostgreSQL resiliente).
+- [`web/`](web): Proxy reverso Nginx (`loja.cafeplanalto.lab`), página HTML da loja, logs JSON e endpoint `stub_status` (`:8080/nginx_status`).
+- [`db/`](db): Banco PostgreSQL 16 (`postgres:16-alpine` + `iproute2`) com script inicial [`init.sql`](db/init.sql).
+- [`loadgen/`](loadgen): Gerador de carga contínuo em `k6` (`5` a `20 req/s`, padrão `10 req/s`) simulando clientes acessando catálogo e criando pedidos.
+- [`docker-compose.yml`](docker-compose.yml): Ambiente local isolado do Integrante B (portas ajustadas para não conflitar com a porta `8080` do Zabbix).
 
-## Como executar com Docker
+## Como subir o ambiente local (WSL2 ou Linux)
+
+> **Dica para WSL2:** mantenha o repositório no sistema de arquivos nativo Linux (`~/...`, não em `/mnt/c/...`) para melhor desempenho de I/O e permissões de contêineres.
 
 ```bash
-docker build -t cafeplanalto/api:latest .
-docker run --rm -p 8000:8000 --name cafeplanalto-api cafeplanalto/api:latest
+cd integrante_B
+cp .env.example .env   # opcional: os padrões já funcionam para desenvolvimento
+docker compose up -d --build
 ```
 
-## Como executar localmente (Python / venv)
+Portas expostas localmente (`127.0.0.1`):
+- **Loja (Nginx):** `http://localhost:8088`
+- **Status interno do Nginx (`stub_status`):** `http://localhost:8089/nginx_status`
+- **API direta / Swagger:** `http://localhost:8000/docs`
+- **Métricas Prometheus da API:** `http://localhost:8000/metrics`
+
+## Testes rápidos e simulação de falhas (Fase 1)
 
 ```bash
-python -m venv .venv
-# Windows PowerShell:
-.\.venv\Scripts\Activate.ps1
-# Linux/macOS:
-# source .venv/bin/activate
+# 1. Ver saúde via proxy reverso (deve retornar {"status":"ok","database":"postgres"})
+curl -i http://localhost:8088/health
 
-pip install -r requirements.txt
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --no-access-log
-```
-
-## Variáveis de ambiente
-
-Consulte [`.env.example`](.env.example). Na Semana 1, com `DATABASE_URL` vazio, a API utiliza automaticamente o repositório em memória.
-
-## Endpoints
-
-| Método e Rota | Descrição |
-| --- | --- |
-| `GET /` | Informações básicas da API e lista de rotas |
-| `GET /produtos` | Lista o catálogo estático de cafés da Café Planalto |
-| `POST /pedidos` | Registra um novo pedido e atualiza métricas de negócio |
-| `GET /pedidos` | Lista os pedidos registrados |
-| `GET /health` | Retorna `200` se o backend de dados responde ou `503` se indisponível |
-| `GET /metrics` | Expõe métricas no formato Prometheus |
-| `GET /admin/caos` | Consulta a configuração atual de caos |
-| `POST /admin/caos` | Liga ou desliga latência artificial (`latencia_ms`) e erros (`taxa_erro`) |
-
-### Comandos rápidos (`curl`) para demonstração
-
-```bash
-# 1. Verificar saúde da API
-curl -i http://localhost:8000/health
-
-# 2. Listar catálogo de cafés
-curl -s http://localhost:8000/produtos
-
-# 3. Criar um pedido
-curl -s -X POST http://localhost:8000/pedidos \
+# 2. Listar catálogo e criar um pedido pela camada web
+curl -s http://localhost:8088/produtos
+curl -s -X POST http://localhost:8088/pedidos \
   -H "Content-Type: application/json" \
-  -H "X-Trace-Id: demo-trace-001" \
-  -d '{"produto_id": 1, "quantidade": 2, "cliente": "filial-balcao"}'
+  -H "X-Trace-Id: teste-web-01" \
+  -d '{"produto_id": 1, "quantidade": 2, "cliente": "teste-local"}'
 
-# 4. Injetar caos (800ms de latência e 20% de erro HTTP 500)
-curl -s -X POST http://localhost:8000/admin/caos \
-  -H "Content-Type: application/json" \
-  -d '{"latencia_ms": 800, "taxa_erro": 0.2}'
+# 3. Ver logs JSON do Nginx e da API, e atividade do gerador de carga
+docker logs --tail 5 cafeplanalto-dev-web
+docker logs --tail 5 cafeplanalto-dev-api
+docker logs --tail 10 cafeplanalto-dev-loadgen
 
-# 5. Desligar caos
-curl -s -X POST "http://localhost:8000/admin/caos?latencia_ms=0&taxa_erro=0"
+# 4. Simular Falha 4 (queda do banco) e validar recuperação automática
+docker stop cafeplanalto-dev-db
+curl -i http://localhost:8088/health        # esperado: HTTP 503
+docker start cafeplanalto-dev-db
+curl -i http://localhost:8088/health        # esperado: volta para HTTP 200 sem reiniciar a API
 
-# 6. Inspecionar métricas Prometheus
-curl -s http://localhost:8000/metrics
+# 5. Simular Falhas 5 e 6 (/admin/caos) e depois desligar
+curl -s -X POST http://localhost:8088/admin/caos -H "Content-Type: application/json" -d '{"latencia_ms": 800, "taxa_erro": 0.2}'
+curl -s -X POST "http://localhost:8088/admin/caos?latencia_ms=0&taxa_erro=0"
 ```
 
-## Sinais de observabilidade
+Para encerrar tudo (adicionando `-v` caso queira apagar os dados do banco):
+```bash
+docker compose down
+```
 
-### Métricas Prometheus (`GET /metrics`)
-
-- `http_requests_total{rota, metodo, status}` (`Counter`)
-- `http_request_duration_seconds{rota}` (`Histogram` com bucket `0.3` para SLO p95 < 300ms)
-- `pedidos_criados_total` (`Counter`)
-- `pedidos_valor_reais_total` (`Counter`)
-- `db_pool_conexoes_em_uso` (`Gauge`)
-
-### Logs estruturados (JSON no `stdout`)
-
-Cada requisição gera uma linha JSON contendo `timestamp`, `nivel`, `mensagem`, `rota`, `metodo`, `status`, `duracao_ms` e, quando presente no cabeçalho `traceparent` ou `X-Trace-Id`, `trace_id`.
-
-## Testes automatizados
+## Testes automatizados da API (`pytest`)
 
 ```bash
-pip install pytest httpx
-pytest -v
+# No Linux/WSL2:
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r api/requirements.txt pytest httpx
+pytest -v api/tests
 ```

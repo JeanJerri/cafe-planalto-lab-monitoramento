@@ -1,0 +1,85 @@
+services:
+  db:
+    build:
+      context: ./db
+    image: cafeplanalto/db:latest
+    container_name: cafeplanalto-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cafeplanalto}
+      POSTGRES_USER: ${POSTGRES_USER:-cafe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cafeplanalto123}
+    volumes:
+      - cafeplanalto_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "${POSTGRES_USER:-cafe}" -d "${POSTGRES_DB:-cafeplanalto}"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - cafeplanalto-dev-net
+
+  api:
+    build:
+      context: ./api
+    image: cafeplanalto/api:latest
+    container_name: cafeplanalto-dev-api
+    restart: unless-stopped
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cafe}:${POSTGRES_PASSWORD:-cafeplanalto123}@db:5432/${POSTGRES_DB:-cafeplanalto}
+      DB_CONNECT_TIMEOUT: 2
+      DB_POOL_TIMEOUT: 3.0
+      DB_INIT_RETRIES: 10
+      DB_INIT_RETRY_DELAY: 1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8000}:8000"
+    networks:
+      - cafeplanalto-dev-net
+
+  web:
+    build:
+      context: ./web
+    image: cafeplanalto/web:latest
+    container_name: cafeplanalto-dev-web
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: api:8000
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-8088}:80"
+      - "127.0.0.1:${WEB_STATUS_HOST_PORT:-8089}:8080"
+    networks:
+      - cafeplanalto-dev-net
+
+  cliente-carga:
+    build:
+      context: ./loadgen
+    image: cafeplanalto/loadgen:latest
+    container_name: cafeplanalto-dev-loadgen
+    restart: unless-stopped
+    environment:
+      TARGET_URL: http://web
+      TARGET_RPS: ${LOADGEN_TARGET_RPS:-10}
+      STARTUP_DELAY: "3"
+    depends_on:
+      - web
+    networks:
+      - cafeplanalto-dev-net
+
+volumes:
+  cafeplanalto_dev_pgdata:
+    name: cafeplanalto_dev_pgdata
+
+networks:
+  cafeplanalto-dev-net:
+    name: cafeplanalto-dev-net
