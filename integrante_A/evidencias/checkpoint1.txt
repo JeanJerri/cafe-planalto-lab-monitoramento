@@ -1,0 +1,30 @@
+=== ROTAS DA MATRIZ ===
+default via 172.30.0.1 dev eth0 
+10.0.0.0/30 dev eth1 proto kernel scope link src 10.0.0.1 
+172.20.10.0/24 dev eth2 proto kernel scope link src 172.20.10.1 
+172.20.20.0/24 via 10.0.0.2 dev eth1 
+172.30.0.0/24 dev eth0 proto kernel scope link src 172.30.0.2 
+=== ROTAS DA FILIAL ===
+default via 172.30.0.1 dev eth0 
+10.0.0.0/30 dev eth1 proto kernel scope link src 10.0.0.2 
+172.20.10.0/24 via 10.0.0.1 dev eth1 
+172.20.20.0/24 dev eth2 proto kernel scope link src 172.20.20.1 
+172.30.0.0/24 dev eth0 proto kernel scope link src 172.30.0.5 
+=== IP FORWARD ===
+net.ipv4.ip_forward = 1
+net.ipv4.ip_forward = 1
+=== TESTE PING ===
+PING 172.20.10.21 (172.20.10.21) 56(84) bytes of data.
+64 bytes from 172.20.10.21: icmp_seq=1 ttl=62 time=0.227 ms
+64 bytes from 172.20.10.21: icmp_seq=2 ttl=62 time=0.149 ms
+64 bytes from 172.20.10.21: icmp_seq=3 ttl=62 time=0.170 ms
+64 bytes from 172.20.10.21: icmp_seq=4 ttl=62 time=0.076 ms
+
+--- 172.20.10.21 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3076ms
+rtt min/avg/max/mdev = 0.076/0.155/0.227/0.054 ms
+=== TESTE TRACEROUTE ===
+traceroute to 172.20.10.21 (172.20.10.21), 30 hops max, 60 byte packets
+ 1  172.20.20.1  0.062 ms  0.029 ms  0.023 ms
+ 2  10.0.0.1  0.023 ms  0.017 ms  0.028 ms
+ 3  172.20.10.21  0.062 ms  0.041 ms  0.027 ms

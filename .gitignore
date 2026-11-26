@@ -1,0 +1,30 @@
+# Variáveis de ambiente e segredos
+.env
+**/.env
+!*.env.example
+!**/.env.example
+**/snmp/.community
+**/snmp/snmpd-*.conf
+
+# Contexto local do agente IDE
+.agente/
+**/.agente/
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+
+# Artefatos gerados pelo Containerlab em runtime (incluindo chaves TLS)
+**/clab-cafeplanalto/
+**/.topology.yml.bak
+
+# Compactados e metadados de SO
+*.tar
+*.tar.gz
+.DS_Store
+Thumbs.db
