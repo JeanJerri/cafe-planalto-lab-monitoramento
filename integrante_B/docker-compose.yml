@@ -76,9 +76,136 @@ services:
     networks:
       - cafeplanalto-dev-net
 
+  dns:
+    image: coredns/coredns:1.11.3
+    container_name: cafeplanalto-dev-dns
+    restart: unless-stopped
+    command:
+      - "-conf"
+      - "/etc/coredns/Corefile"
+    volumes:
+      - ./observability/dns-dev/Corefile:/etc/coredns/Corefile:ro
+    networks:
+      - cafeplanalto-dev-net
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.3.0
+    container_name: cafeplanalto-dev-nginx-exporter
+    restart: unless-stopped
+    command:
+      - "--nginx.scrape-uri=http://web:8080/nginx_status"
+    depends_on:
+      - web
+    networks:
+      - cafeplanalto-dev-net
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    container_name: cafeplanalto-dev-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-cafe}:${POSTGRES_PASSWORD:-cafeplanalto123}@db:5432/${POSTGRES_DB:-cafeplanalto}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cafeplanalto-dev-net
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: cafeplanalto-dev-node-exporter
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - cafeplanalto-dev-net
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cafeplanalto-dev-cadvisor
+    restart: unless-stopped
+    command:
+      - "--docker_only=true"
+      - "--housekeeping_interval=15s"
+      - "--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "127.0.0.1:${CADVISOR_HOST_PORT:-8085}:8080"
+    networks:
+      - cafeplanalto-dev-net
+
+  sonda:
+    build:
+      context: ./observability/blackbox
+    image: cafeplanalto/blackbox:latest
+    container_name: cafeplanalto-dev-sonda
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+    ports:
+      - "127.0.0.1:${BLACKBOX_HOST_PORT:-9115}:9115"
+    networks:
+      - cafeplanalto-dev-net
+
+  alertmanager:
+    build:
+      context: ./observability/alertmanager
+    image: cafeplanalto/alertmanager:latest
+    container_name: cafeplanalto-dev-alertmanager
+    restart: unless-stopped
+    environment:
+      SMTP_SMARTHOST: ${SMTP_SMARTHOST:-smtp.gmail.com:587}
+      SMTP_FROM: ${SMTP_FROM:-alertas@cafeplanalto.lab}
+      SMTP_AUTH_USERNAME: ${SMTP_AUTH_USERNAME:-alertas@cafeplanalto.lab}
+      SMTP_AUTH_PASSWORD: ${SMTP_AUTH_PASSWORD:-not-configured}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-equipe@cafeplanalto.lab}
+    volumes:
+      - cafeplanalto_dev_amdata:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_HOST_PORT:-9093}:9093"
+    networks:
+      - cafeplanalto-dev-net
+
+  prometheus:
+    build:
+      context: ./observability/prometheus
+    image: cafeplanalto/prometheus:latest
+    container_name: cafeplanalto-dev-prometheus
+    restart: unless-stopped
+    volumes:
+      - cafeplanalto_dev_promdata:/prometheus
+    depends_on:
+      - api
+      - nginx-exporter
+      - postgres-exporter
+      - node-exporter
+      - cadvisor
+      - sonda
+      - alertmanager
+    ports:
+      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}:9090"
+    networks:
+      - cafeplanalto-dev-net
+
 volumes:
   cafeplanalto_dev_pgdata:
     name: cafeplanalto_dev_pgdata
+  cafeplanalto_dev_promdata:
+    name: cafeplanalto_dev_promdata
+  cafeplanalto_dev_amdata:
+    name: cafeplanalto_dev_amdata
 
 networks:
   cafeplanalto-dev-net:

@@ -1,70 +1,66 @@
-# Café Planalto — Aplicação 3 Camadas e Carga (Integrante B)
+# Café Planalto — Aplicação 3 Camadas, Carga e Observabilidade (Integrante B)
 
-Stack da aplicação da loja virtual **Café Planalto** com foco em observabilidade, resiliência e geração de carga contínua para testes locais no **WSL2 / Docker** antes da integração final na topologia do Containerlab.
+Stack do Integrante B para a loja virtual **Café Planalto** com testes locais no **WSL2 / Docker** antes da integração final no Containerlab.
 
 ## Estrutura de pastas
 
 - [`api/`](api): API REST em Python + FastAPI (catálogo, pedidos, `/health`, `/metrics` Prometheus, `/admin/caos`, logs JSON e pool PostgreSQL resiliente).
 - [`web/`](web): Proxy reverso Nginx (`loja.cafeplanalto.lab`), página HTML da loja, logs JSON e endpoint `stub_status` (`:8080/nginx_status`).
-- [`db/`](db): Banco PostgreSQL 16 (`postgres:16-alpine` + `iproute2`) com script inicial [`init.sql`](db/init.sql).
-- [`loadgen/`](loadgen): Gerador de carga contínuo em `k6` (`5` a `20 req/s`, padrão `10 req/s`) simulando clientes acessando catálogo e criando pedidos.
-- [`docker-compose.yml`](docker-compose.yml): Ambiente local isolado do Integrante B (portas ajustadas para não conflitar com a porta `8080` do Zabbix).
+- [`db/`](db): Banco PostgreSQL 16 (`postgres:16-alpine` + `iproute2`) com [`init.sql`](db/init.sql).
+- [`loadgen/`](loadgen): Gerador de carga contínuo em `k6` (`5` a `20 req/s`, padrão `10 req/s`).
+- [`observability/`](observability):
+  - [`blackbox/`](observability/blackbox): Blackbox Exporter (`http_2xx`, `dns_cafeplanalto`, `icmp`) + `iproute2`.
+  - [`prometheus/`](observability/prometheus): `prometheus.local.yml`, `prometheus.clab.yml` (100% na rede de dados `172.20.x.x`) e [`rules/alerts.yml`](observability/prometheus/rules/alerts.yml) com retenção `7d`.
+  - [`alertmanager/`](observability/alertmanager): template SMTP (`alertmanager.yml.tmpl`) com agrupamento, `inhibit_rules` e envio por e-mail (`send_resolved: true`).
+  - [`dns-dev/`](observability/dns-dev): CoreDNS auxiliar para validar a sonda DNS no Compose local.
+  - [`tests/`](observability/tests): testes automatizados das configurações de observabilidade.
+- [`docker-compose.yml`](docker-compose.yml): Ambiente local completo das Fases 1 e 2.
 
-## Como subir o ambiente local (WSL2 ou Linux)
+## Como configurar o e-mail (Gmail + Senha de App) e subir tudo
 
-> **Dica para WSL2:** mantenha o repositório no sistema de arquivos nativo Linux (`~/...`, não em `/mnt/c/...`) para melhor desempenho de I/O e permissões de contêineres.
+> **Dica para WSL2:** mantenha o repositório no sistema de arquivos nativo Linux (`~/...`, não em `/mnt/c/...`).
 
-```bash
-cd integrante_B
-cp .env.example .env   # opcional: os padrões já funcionam para desenvolvimento
-docker compose up -d --build
-```
+1. Copie `.env.example` para `.env` (o `.env` fica ignorado no Git):
+   ```bash
+   cd integrante_B
+   cp .env.example .env
+   ```
+2. Preencha as variáveis SMTP no `.env` (no Gmail, ative a verificação em 2 etapas e gere uma **Senha de App** de 16 caracteres sem espaços):
+   ```env
+   SMTP_SMARTHOST=smtp.gmail.com:587
+   SMTP_FROM=seu.email@gmail.com
+   SMTP_AUTH_USERNAME=seu.email@gmail.com
+   SMTP_AUTH_PASSWORD=sua_senha_de_app_16_chars
+   SMTP_REQUIRE_TLS=true
+   ALERT_EMAIL_TO=seu.email@gmail.com
+   ```
+3. Suba toda a stack local:
+   ```bash
+   docker compose up -d --build
+   ```
 
-Portas expostas localmente (`127.0.0.1`):
-- **Loja (Nginx):** `http://localhost:8088`
-- **Status interno do Nginx (`stub_status`):** `http://localhost:8089/nginx_status`
-- **API direta / Swagger:** `http://localhost:8000/docs`
-- **Métricas Prometheus da API:** `http://localhost:8000/metrics`
+Portas locais (`127.0.0.1`, sem conflito com a porta `8080` do Zabbix):
 
-## Testes rápidos e simulação de falhas (Fase 1)
+| Serviço | URL Local |
+| --- | --- |
+| **Loja (Nginx)** | `http://localhost:8088` |
+| **Status Nginx (`stub_status`)** | `http://localhost:8089/nginx_status` |
+| **API / Swagger / Metrics** | `http://localhost:8000/docs` e `http://localhost:8000/metrics` |
+| **Prometheus (Targets & Alerts)** | `http://localhost:9090` |
+| **Alertmanager** | `http://localhost:9093` |
+| **Blackbox Exporter (`sonda`)** | `http://localhost:9115` |
+| **cAdvisor** | `http://localhost:8085` |
 
-```bash
-# 1. Ver saúde via proxy reverso (deve retornar {"status":"ok","database":"postgres"})
-curl -i http://localhost:8088/health
-
-# 2. Listar catálogo e criar um pedido pela camada web
-curl -s http://localhost:8088/produtos
-curl -s -X POST http://localhost:8088/pedidos \
-  -H "Content-Type: application/json" \
-  -H "X-Trace-Id: teste-web-01" \
-  -d '{"produto_id": 1, "quantidade": 2, "cliente": "teste-local"}'
-
-# 3. Ver logs JSON do Nginx e da API, e atividade do gerador de carga
-docker logs --tail 5 cafeplanalto-dev-web
-docker logs --tail 5 cafeplanalto-dev-api
-docker logs --tail 10 cafeplanalto-dev-loadgen
-
-# 4. Simular Falha 4 (queda do banco) e validar recuperação automática
-docker stop cafeplanalto-dev-db
-curl -i http://localhost:8088/health        # esperado: HTTP 503
-docker start cafeplanalto-dev-db
-curl -i http://localhost:8088/health        # esperado: volta para HTTP 200 sem reiniciar a API
-
-# 5. Simular Falhas 5 e 6 (/admin/caos) e depois desligar
-curl -s -X POST http://localhost:8088/admin/caos -H "Content-Type: application/json" -d '{"latencia_ms": 800, "taxa_erro": 0.2}'
-curl -s -X POST "http://localhost:8088/admin/caos?latencia_ms=0&taxa_erro=0"
-```
-
-Para encerrar tudo (adicionando `-v` caso queira apagar os dados do banco):
-```bash
-docker compose down
-```
-
-## Testes automatizados da API (`pytest`)
+## Validações rápidas de CLI e Testes Automatizados
 
 ```bash
-# No Linux/WSL2:
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r api/requirements.txt pytest httpx
-pytest -v api/tests
+# Validar sintaxe de configuração e regras dentro dos contêineres:
+docker exec cafeplanalto-dev-prometheus promtool check config /etc/prometheus/prometheus.yml
+docker exec cafeplanalto-dev-prometheus promtool check rules /etc/prometheus/rules/alerts.yml
+docker exec cafeplanalto-dev-alertmanager amtool check-config /tmp/alertmanager.yml
+
+# Rodar todos os testes automatizados (API + configurações de observabilidade):
+pytest -v api/tests observability/tests
 ```
+
+Consulte o roteiro passo a passo de testes manuais e checklist de apresentação (Barema P1, P2 e P3) em [`../docs/estudo/integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md`](../docs/estudo/integrante_B/03_Exporters_Blackbox_Prometheus_Alertmanager.md).
